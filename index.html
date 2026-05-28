@@ -1,0 +1,3580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HSK考试成绩分析专家平台 | HSK Exam Analysis Expert Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- OCR: 阿里百炼 Qwen Vision API -->
+<style>
+:root {
+  --primary: #165DFF;
+  --primary-light: #E8F3FF;
+  --accent: #FF7D00;
+  --accent-light: #FFF3E8;
+  --text-dark: #1D2129;
+  --text-mid: #4E5969;
+  --text-light: #C9CDD4;
+  --white: #FFFFFF;
+  --bg: #F7F8FA;
+  --card-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --card-hover-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text-dark); line-height: 1.6; min-height: 100vh;
+}
+/* Header */
+.header {
+  background: var(--white); border-bottom: 1px solid var(--text-light);
+  padding: 0 24px; height: 64px; display: flex; align-items: center;
+  justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.logo {
+  width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), #3C7EFF);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 20px; font-weight: 700;
+}
+.header-title { font-size: 18px; font-weight: 700; color: var(--text-dark); }
+.header-subtitle { font-size: 12px; color: var(--text-mid); margin-left: 4px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+/* Language Selector */
+.lang-select {
+  padding: 6px 10px; border: 1.5px solid var(--text-light); border-radius: 6px;
+  font-size: 13px; font-family: inherit; color: var(--text-dark); background: var(--white);
+  cursor: pointer; transition: var(--transition); outline: none;
+}
+.lang-select:focus { border-color: var(--primary); }
+/* Buttons */
+.btn {
+  padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px;
+  font-weight: 500; cursor: pointer; transition: var(--transition);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn-primary { background: var(--primary); color: var(--white); }
+.btn-primary:hover { background: #0E4CDB; box-shadow: 0 4px 12px rgba(22,93,255,0.3); }
+.btn-accent { background: var(--accent); color: var(--white); }
+.btn-accent:hover { background: #E57000; box-shadow: 0 4px 12px rgba(255,125,0,0.3); }
+.btn-outline { background: var(--white); color: var(--primary); border: 1.5px solid var(--primary); }
+.btn-outline:hover { background: var(--primary-light); }
+.btn-ghost { background: transparent; color: var(--text-mid); }
+.btn-ghost:hover { background: var(--bg); color: var(--text-dark); }
+.btn-danger { background: #F53F3F; color: white; }
+.btn-danger:hover { background: #D93636; }
+.btn-success { background: #00B42A; color: white; }
+.btn-success:hover { background: #009A22; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+.btn-lg { padding: 12px 24px; font-size: 16px; }
+/* Layout */
+.app-container { display: flex; min-height: calc(100vh - 64px); }
+.sidebar {
+  width: 220px; background: var(--white); border-right: 1px solid var(--text-light);
+  padding: 16px 0; flex-shrink: 0;
+}
+.sidebar-nav { list-style: none; }
+.sidebar-nav li { padding: 0 12px; margin: 2px 0; }
+.sidebar-nav li a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: var(--radius-sm); text-decoration: none; color: var(--text-mid);
+  font-size: 14px; font-weight: 500; transition: var(--transition); cursor: pointer;
+}
+.sidebar-nav li a:hover { background: var(--primary-light); color: var(--primary); }
+.sidebar-nav li a.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.sidebar-nav li a .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+.sidebar-nav li a .badge {
+  margin-left: auto; background: var(--accent); color: white;
+  font-size: 10px; padding: 2px 6px; border-radius: 10px;
+}
+.main-content { flex: 1; padding: 24px; overflow-y: auto; max-height: calc(100vh - 64px); }
+/* Panels */
+.panel { display: none; animation: fadeSlideIn 0.4s ease; }
+.panel.active { display: block; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+/* Cards */
+.card {
+  background: var(--white); border-radius: var(--radius); padding: 24px;
+  box-shadow: var(--card-shadow); margin-bottom: 20px; transition: var(--transition);
+}
+.card:hover { box-shadow: var(--card-hover-shadow); }
+.card-header {
+  font-size: 16px; font-weight: 700; color: var(--text-dark);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.card-header .icon { font-size: 20px; }
+.card-subtitle { font-size: 13px; color: var(--text-mid); margin-bottom: 16px; }
+/* Form Elements */
+.upload-area {
+  border: 2px dashed var(--text-light); border-radius: var(--radius);
+  padding: 40px 24px; text-align: center; cursor: pointer;
+  transition: var(--transition); background: var(--bg);
+}
+.upload-area:hover { border-color: var(--primary); background: var(--primary-light); }
+.upload-area .upload-icon { font-size: 48px; margin-bottom: 12px; }
+.upload-area .upload-text { font-size: 15px; color: var(--text-mid); margin-bottom: 4px; }
+.upload-area .upload-hint { font-size: 12px; color: var(--text-light); }
+.upload-area.dragover { border-color: var(--primary); background: var(--primary-light); }
+textarea {
+  width: 100%; min-height: 200px; padding: 14px;
+  border: 1.5px solid var(--text-light); border-radius: var(--radius-sm);
+  font-size: 14px; font-family: inherit; line-height: 1.8; resize: vertical;
+  transition: var(--transition); color: var(--text-dark); background: var(--white);
+}
+textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,93,255,0.1); }
+textarea::placeholder { color: var(--text-light); }
+select {
+  padding: 8px 12px; border: 1.5px solid var(--text-light); border-radius: 6px;
+  font-size: 14px; font-family: inherit; color: var(--text-dark); background: var(--white);
+  cursor: pointer; transition: var(--transition);
+}
+select:focus { outline: none; border-color: var(--primary); }
+/* Image Upload */
+.img-upload-area {
+  border: 1.5px dashed var(--text-light); border-radius: var(--radius-sm);
+  padding: 16px; text-align: center; cursor: pointer; transition: var(--transition);
+  background: var(--bg); margin-top: 8px; min-width: 140px;
+}
+.img-upload-area:hover { border-color: var(--accent); background: var(--accent-light); }
+.img-preview {
+  max-width: 100%; max-height: 200px; border-radius: var(--radius-sm);
+  margin-top: 8px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.img-preview-wrap { position: relative; display: inline-block; }
+.img-preview-remove {
+  position: absolute; top: -8px; right: -8px;
+  background: #F53F3F; color: white; border: none; border-radius: 50%;
+  width: 24px; height: 24px; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+/* Stats Grid */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px; margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--white); border-radius: var(--radius); padding: 20px;
+  box-shadow: var(--card-shadow); text-align: center; transition: var(--transition);
+  animation: scaleIn 0.4s ease;
+}
+.stat-card:hover { box-shadow: var(--card-hover-shadow); transform: translateY(-2px); }
+.stat-value { font-size: 32px; font-weight: 700; color: var(--primary); }
+.stat-value.accent { color: var(--accent); }
+.stat-value.success { color: #00B42A; }
+.stat-value.danger { color: #F53F3F; }
+.stat-label { font-size: 13px; color: var(--text-mid); margin-top: 4px; }
+/* Charts */
+.chart-container { width: 100%; height: 360px; margin: 16px 0; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* Results */
+.result-section { margin-top: 20px; animation: fadeSlideIn 0.5s ease; }
+.result-block {
+  background: var(--bg); border-radius: var(--radius-sm); padding: 16px; margin: 12px 0;
+}
+.result-block h4 {
+  font-size: 14px; font-weight: 600; color: var(--text-dark);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+/* Bilingual / secondary language output (EN or RU per UI lang) */
+.bi-alt, .bi-ru {
+  color: #888; font-size: 13px; margin-top: 4px; line-height: 1.6;
+  font-style: italic; display: block;
+}
+.bi-section-title {
+  font-size: 15px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;
+}
+.bi-section-title + .bi-alt, .bi-section-title + .bi-ru { margin-bottom: 8px; }
+/* Tags */
+.tag {
+  display: inline-block; padding: 2px 10px; border-radius: 12px;
+  font-size: 12px; font-weight: 500;
+}
+.tag-success { background: #E8FFEA; color: #00B42A; }
+.tag-warning { background: #FFF7E8; color: #FF7D00; }
+.tag-danger { background: #FFECE8; color: #F53F3F; }
+.tag-info { background: var(--primary-light); color: var(--primary); }
+.tag-excellent { background: #E8FFEA; color: #00B42A; font-weight: 600; }
+/* Weakness */
+.weakness-list { list-style: none; }
+.weakness-list li {
+  padding: 10px 14px; margin: 6px 0; background: var(--white);
+  border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 14px; display: flex; align-items: flex-start; gap: 8px;
+}
+.weakness-list li .dot { color: var(--accent); font-weight: 700; flex-shrink: 0; }
+/* Sentence */
+.sentence-item {
+  background: var(--white); border-radius: var(--radius-sm);
+  padding: 14px 16px; margin: 10px 0; border-left: 3px solid var(--primary);
+}
+.sentence-item.original { border-left-color: #F53F3F; background: #FFF5F5; }
+.sentence-item.corrected { border-left-color: #00B42A; background: #F6FFED; }
+.sentence-item.highlight { border-left-color: var(--primary); background: var(--primary-light); }
+.sentence-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 4px;
+}
+.sentence-label.error { color: #F53F3F; }
+.sentence-label.fixed { color: #00B42A; }
+.sentence-label.expert { color: var(--primary); }
+/* Toast */
+.toast-container {
+  position: fixed; top: 80px; right: 24px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  padding: 12px 20px; border-radius: var(--radius-sm); color: white;
+  font-size: 14px; font-weight: 500; animation: slideInRight 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 360px;
+}
+.toast.success { background: #00B42A; }
+.toast.error { background: #F53F3F; }
+.toast.info { background: var(--primary); }
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* Modal */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease;
+}
+.modal-overlay.hidden { display: none; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: var(--white); border-radius: var(--radius); padding: 32px;
+  max-width: 720px; width: 90%; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+}
+.modal h3 { font-size: 18px; margin-bottom: 20px; color: var(--text-dark); }
+.modal-close {
+  float: right; background: none; border: none; font-size: 24px;
+  cursor: pointer; color: var(--text-mid); padding: 4px 8px; border-radius: 4px;
+}
+.modal-close:hover { background: var(--bg); }
+/* Loading */
+.loading-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.8); z-index: 9998;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.loading-overlay.hidden { display: none; }
+.spinner {
+  width: 48px; height: 48px; border: 4px solid var(--text-light);
+  border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { margin-top: 16px; color: var(--text-mid); font-size: 14px; }
+.progress-bar {
+  height: 4px; background: var(--text-light); border-radius: 2px;
+  overflow: hidden; margin: 8px 0;
+}
+.progress-fill {
+  height: 100%; background: var(--primary); border-radius: 2px;
+  transition: width 0.3s ease;
+}
+/* History */
+.history-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--white); border-radius: var(--radius-sm);
+  margin: 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: var(--transition);
+}
+.history-item:hover { box-shadow: var(--card-shadow); }
+.history-item .history-info { flex: 1; }
+.history-item .history-title { font-size: 14px; font-weight: 500; }
+.history-item .history-time { font-size: 12px; color: var(--text-mid); }
+.history-item .history-actions { display: flex; gap: 6px; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-light); }
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+/* Level Badge */
+.level-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px;
+  border-radius: 20px; font-size: 14px; font-weight: 600; color: white; background: var(--primary);
+}
+.level-badge.pass { background: #00B42A; }
+.level-badge.fail { background: #F53F3F; }
+.level-badge.excellent { background: #165DFF; }
+/* Standards Table */
+.standards-table {
+  width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0;
+}
+.standards-table th, .standards-table td {
+  padding: 10px 12px; border: 1px solid var(--text-light); text-align: center;
+}
+.standards-table th { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.standards-table tr:hover td { background: var(--bg); }
+/* Dimension Bar */
+.dimension-bar {
+  display: flex; align-items: center; gap: 8px; margin: 8px 0;
+}
+.dimension-bar .dim-label { width: 80px; font-size: 13px; font-weight: 500; text-align: right; flex-shrink: 0; }
+.dimension-bar .dim-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.dimension-bar .dim-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.dimension-bar .dim-value { font-size: 13px; font-weight: 600; width: 36px; }
+.dimension-bar .dim-fill.high { background: #00B42A; }
+.dimension-bar .dim-fill.medium { background: var(--accent); }
+.dimension-bar .dim-fill.low { background: #F53F3F; }
+.input-row { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 12px; flex-wrap: wrap; }
+.input-row > div { display: flex; flex-direction: column; gap: 4px; }
+.input-row label { font-size: 13px; font-weight: 500; color: var(--text-mid); }
+/* Study Tips */
+.tips-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
+.tips-tab {
+  padding: 8px 16px; border: 1.5px solid var(--text-light); border-radius: 20px;
+  font-size: 13px; cursor: pointer; transition: var(--transition); background: var(--white);
+  color: var(--text-mid); font-family: inherit; white-space: nowrap;
+}
+.tips-tab:hover { border-color: var(--primary); color: var(--primary); }
+.tips-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+.tips-content { animation: fadeSlideIn 0.3s ease; }
+.tips-card {
+  background: var(--bg); border-radius: var(--radius-sm); padding: 20px; margin: 12px 0;
+  border-left: 4px solid var(--primary);
+}
+.tips-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark); }
+.tips-card p, .tips-card li { font-size: 14px; color: var(--text-mid); line-height: 1.8; }
+.exercise-box {
+  background: var(--white); border: 1.5px solid var(--text-light); border-radius: var(--radius-sm);
+  padding: 20px; margin: 12px 0;
+}
+.exercise-box .question { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+.exercise-box .answer {
+  background: #F6FFED; border-radius: 6px; padding: 12px;
+  font-size: 14px; color: #00B42A; margin-top: 8px; display: none;
+}
+/* Responsive */
+@media (max-width: 1024px) { .charts-row { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .app-container { flex-direction: column; }
+  .sidebar {
+    width: 100%; border-right: none; border-bottom: 1px solid var(--text-light);
+    padding: 8px 0; overflow-x: auto;
+  }
+  .sidebar-nav { display: flex; padding: 0 8px; }
+  .sidebar-nav li { padding: 0; margin: 0 2px; white-space: nowrap; }
+  .sidebar-nav li a { padding: 8px 12px; font-size: 13px; }
+  .sidebar-nav li a .badge { display: none; }
+  .main-content { padding: 16px; max-height: none; }
+  .header { padding: 0 12px; }
+  .header-subtitle { display: none; }
+  .header-title { font-size: 15px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-container { height: 280px; }
+  textarea { min-height: 150px; }
+  .modal { padding: 20px; width: 95%; }
+  .tips-tabs { gap: 2px; }
+  .tips-tab { padding: 6px 10px; font-size: 11px; }
+}
+@media (max-width: 480px) {
+  .header { height: 56px; }
+  .header-title { font-size: 14px; }
+  .header-actions .btn { padding: 6px 10px; font-size: 12px; }
+  .btn-lg { padding: 10px 18px; font-size: 14px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .card { padding: 16px; }
+  .chart-container { height: 240px; }
+  .sidebar-nav li a { font-size: 12px; padding: 6px 10px; }
+}
+/* ==================== Auto-Grading Styles ==================== */
+/* Score Circle */
+.score-circle {
+  width: 120px; height: 120px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  margin: 0 auto; transition: transform 0.3s ease;
+}
+.score-circle:hover { transform: scale(1.05); }
+.score-circle .score-num { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+.score-circle .score-total { font-size: 0.8rem; opacity: 0.85; }
+.score-green  { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.score-blue   { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.score-yellow { background: linear-gradient(135deg, #eab308, #ca8a04); }
+.score-orange { background: linear-gradient(135deg, #f97316, #ea580c); }
+.score-red    { background: linear-gradient(135deg, #ef4444, #dc2626); }
+/* Grade Badge */
+.grade-badge {
+  display: inline-block; padding: 6px 20px; border-radius: 20px;
+  color: white; font-weight: 700; font-size: 16px; margin-top: 8px;
+}
+.grade-a { background: #22c55e; } .grade-b { background: #3b82f6; }
+.grade-c { background: #eab308; } .grade-d { background: #f97316; }
+.grade-f { background: #ef4444; }
+/* Result Tabs */
+.ag-tabs { display: flex; border-bottom: 2px solid var(--text-light); margin-bottom: 16px; gap: 2px; }
+.ag-tab {
+  padding: 10px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+  border: none; background: none; color: var(--text-mid);
+  border-bottom: 3px solid transparent; transition: var(--transition);
+  font-family: inherit; margin-bottom: -2px;
+}
+.ag-tab:hover { color: var(--primary); }
+.ag-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.ag-tab-panel { animation: fadeSlideIn 0.3s ease; }
+.ag-tab-panel.hidden { display: none; }
+/* Error Cards (Auto-Grading) */
+.ag-error-card {
+  border-left: 4px solid; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 14px; margin-bottom: 8px; background: #fafafa;
+  transition: box-shadow 0.15s ease;
+}
+.ag-error-card:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.ag-error-card.ag-typo { border-left-color: #ef4444; }
+.ag-error-card.ag-grammar { border-left-color: #f59e0b; }
+.ag-error-card.ag-repeat { border-left-color: #8b5cf6; }
+.ag-error-badge {
+  display: inline-block; font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 9999px; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ag-error-typo-badge { background: #fef2f2; color: #dc2626; }
+.ag-error-grammar-badge { background: #fffbeb; color: #d97706; }
+.ag-error-repeat-badge { background: #f5f3ff; color: #7c3aed; }
+/* Highlight Markers */
+.highlight-typo { background: #fecaca; text-decoration: line-through; padding: 1px 2px; border-radius: 2px; }
+.highlight-grammar { background: #fde68a; padding: 1px 2px; border-radius: 2px; }
+/* Detail Section Title */
+.ag-detail-title {
+  font-size: 0.9rem; font-weight: 600; color: var(--text-dark);
+  margin-bottom: 10px; margin-top: 16px; padding-bottom: 6px;
+  border-bottom: 2px solid #e5e7eb;
+}
+/* Image Drop Zone */
+.ag-img-dropzone {
+  border: 2px dashed var(--text-light); border-radius: var(--radius-sm);
+  padding: 20px 16px; text-align: center; cursor: pointer;
+  transition: var(--transition); background: var(--bg);
+  margin-top: 8px; position: relative;
+}
+.ag-img-dropzone:hover { border-color: var(--accent); background: var(--accent-light); }
+.ag-img-dropzone.dragover { border-color: var(--accent); background: var(--accent-light); }
+.ag-img-dropzone .drop-icon { font-size: 28px; margin-bottom: 4px; }
+.ag-img-dropzone .drop-text { font-size: 12px; color: var(--text-mid); }
+.ag-img-dropzone .drop-hint { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+textarea.ag-text-input.ag-dragover {
+  border-color: var(--accent); background: var(--accent-light);
+  box-shadow: 0 0 0 2px rgba(255, 125, 0, 0.15);
+}
+/* Image Preview Grid */
+.ag-img-previews { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.ag-img-preview-item {
+  position: relative; width: 100px; height: 100px; border-radius: var(--radius-sm);
+  overflow: hidden; border: 2px solid var(--text-light);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.ag-img-preview-item img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.ag-img-preview-remove {
+  position: absolute; top: 2px; right: 2px;
+  background: rgba(245,63,63,0.9); color: white; border: none; border-radius: 50%;
+  width: 20px; height: 20px; font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.ag-img-preview-remove:hover { background: #F53F3F; }
+/* OCR Hint */
+.ag-ocr-hint {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  background: #FFF7E8; border: 1px solid #FFD591; border-radius: var(--radius-sm);
+  font-size: 12px; color: #AD6800; margin-top: 8px;
+}
+/* Stat Mini Card */
+.ag-stat-mini {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 10px; text-align: center; transition: box-shadow 0.2s ease;
+}
+.ag-stat-mini:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.ag-stat-mini .ag-stat-val { display: block; font-size: 1.4rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+.ag-stat-mini .ag-stat-lbl { display: block; font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+/* Responsive for auto-grading */
+@media (max-width: 768px) {
+  .score-circle { width: 100px; height: 100px; }
+  .score-circle .score-num { font-size: 1.75rem; }
+  .ag-tab { padding: 8px 12px; font-size: 12px; }
+  .ag-img-preview-item { width: 80px; height: 80px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">HSK</div>
+    <div>
+      <span class="header-title" id="headerTitle">HSK考试成绩分析专家平台</span>
+      <span class="header-subtitle" id="headerSubtitle">专业 · 精准 · 高效</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <select class="lang-select" id="langSelect" onchange="switchLanguage(this.value)" title="语言 / Language / Язык">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+      <option value="ru">Русский</option>
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="showStandardsModal()"><span data-i18n="btnStandards">📋 评分标准</span></button>
+    <button class="btn btn-outline btn-sm" onclick="clearAllHistory()"><span data-i18n="clearAllHistory">🗑 清空历史</span></button>
+  </div>
+</header>
+
+<!-- App Container -->
+<div class="app-container">
+  <nav class="sidebar" id="sidebar">
+    <ul class="sidebar-nav">
+      <li><a class="active" data-panel="score-panel" onclick="switchPanel('score-panel', this)">
+        <span class="nav-icon">📊</span><span data-i18n="navScore">成绩分析</span><span class="badge">Excel</span>
+      </a></li>
+      <li><a data-panel="speaking-panel" onclick="switchPanel('speaking-panel', this)">
+        <span class="nav-icon">🎤</span><span data-i18n="navSpeaking">口语分析</span>
+      </a></li>
+      <li><a data-panel="essay-panel" onclick="switchPanel('essay-panel', this)">
+        <span class="nav-icon">✏️</span><span data-i18n="navEssay">作文批改</span>
+      </a></li>
+      <li><a data-panel="auto-grading-panel" onclick="switchPanel('auto-grading-panel', this)">
+        <span class="nav-icon">📝</span><span data-i18n="navAutoGrading">作业批改</span>
+      </a></li>
+      <li><a data-panel="tips-panel" onclick="switchPanel('tips-panel', this)">
+        <span class="nav-icon">💡</span><span data-i18n="navTips">学习技巧</span><span class="badge">New</span>
+      </a></li>
+      <li><a data-panel="history-panel" onclick="switchPanel('history-panel', this)">
+        <span class="nav-icon">📁</span><span data-i18n="navHistory">历史记录</span>
+      </a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- ==================== Panel 1: 成绩分析 ==================== -->
+    <div class="panel active" id="score-panel">
+      <div class="card">
+        <div class="card-header"><span class="icon">📊</span><span data-i18n="scoreTitle">上传HSK成绩单</span></div>
+        <div class="card-subtitle" data-i18n="scoreSubtitle">支持Excel (.xlsx, .xls) 和 CSV 格式的成绩单文件</div>
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon">📁</div>
+          <div class="upload-text" data-i18n="uploadText">点击上传或拖拽文件到此处</div>
+          <div class="upload-hint">.xlsx, .xls, .csv</div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileUpload(this.files[0])">
+        <div class="input-row" style="margin-top:16px">
+          <div>
+            <label data-i18n="hskLevel">HSK等级</label>
+            <select id="hskLevel" onchange="updateScoreStandards()">
+              <option value="1">HSK 一级</option><option value="2">HSK 二级</option>
+              <option value="3">HSK 三级</option><option value="4" selected>HSK 四级</option>
+              <option value="5">HSK 五级</option><option value="6">HSK 六级</option>
+            </select>
+          </div>
+          <div>
+            <label data-i18n="studentName">考生姓名（可选）</label>
+            <input type="text" id="studentName" placeholder="输入姓名" style="padding:8px 12px;border:1.5px solid var(--text-light);border-radius:6px;font-size:14px;width:160px;">
+          </div>
+        </div>
+      </div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-value" id="totalScore">--</div><div class="stat-label" data-i18n="totalScore">总分</div></div>
+        <div class="stat-card"><div class="stat-value" id="listeningScore">--</div><div class="stat-label" data-i18n="listeningScore">听力得分</div></div>
+        <div class="stat-card"><div class="stat-value" id="readingScore">--</div><div class="stat-label" data-i18n="readingScore">阅读得分</div></div>
+        <div class="stat-card"><div class="stat-value" id="writingScore">--</div><div class="stat-label" data-i18n="writingScore">写作得分</div></div>
+        <div class="stat-card"><div class="stat-value accent" id="passStatus">--</div><div class="stat-label" data-i18n="passStatus">是否通过</div></div>
+      </div>
+      <div class="charts-row">
+        <div class="card"><div class="card-header" data-i18n="radarChart">🎯 得分雷达图</div><div class="chart-container" id="radarChart"></div></div>
+        <div class="card"><div class="card-header" data-i18n="barChart">📊 各题型柱状图</div><div class="chart-container" id="barChart"></div></div>
+      </div>
+      <div class="card"><div class="card-header" data-i18n="trendChart">📈 进步趋势图</div><div class="chart-container" id="trendChart"></div></div>
+      <div class="card" id="weaknessCard" style="display:none"><div class="card-header" data-i18n="weaknessAnalysis">🔍 薄弱知识点分析</div><div id="weaknessContent"></div></div>
+      <div class="card" id="suggestionCard" style="display:none"><div class="card-header" data-i18n="suggestions">💡 个性化学习建议</div><div id="suggestionContent"></div></div>
+      <div style="display:flex;gap:12px;margin-top:20px" id="scoreActions">
+        <button class="btn btn-primary btn-lg" onclick="exportPDF('score-panel')" data-i18n="exportPDF">📄 导出PDF报告</button>
+        <button class="btn btn-outline btn-lg" onclick="clearScorePanel()" data-i18n="clearCurrent">🔄 清空当前内容</button>
+      </div>
+    </div>
+
+    <!-- ==================== Panel 2: 口语分析 ==================== -->
+    <div class="panel" id="speaking-panel">
+      <div class="card">
+        <div class="card-header"><span class="icon">🎤</span><span data-i18n="speakingTitle">口语答题分析（专家级）</span></div>
+        <div class="card-subtitle" data-i18n="speakingSubtitle">粘贴你的HSK口语回答文本，系统将按HSKK官方标准进行精准多维度分析</div>
+        <div class="input-row">
+          <div style="flex:1;min-width:200px">
+            <label data-i18n="topicQuestion">题目/话题</label>
+            <input type="text" id="speakingTopic" placeholder="例如：请介绍你的家乡" style="padding:8px 12px;border:1.5px solid var(--text-light);border-radius:6px;font-size:14px;width:100%;">
+          </div>
+          <div>
+            <label data-i18n="targetLevel">目标等级</label>
+            <select id="speakingLevel">
+              <option value="beginner">HSKK 初级</option>
+              <option value="intermediate" selected>HSKK 中级</option>
+              <option value="advanced">HSKK 高级</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="speakingInput" placeholder="请在此粘贴你的口语回答文本...&#10;&#10;例如：我的家乡在北京，北京是中国的首都。北京有很多有名的地方，比如故宫、长城和天安门广场..."></textarea>
+        <!-- Image Upload for Speaking -->
+        <div style="margin-top:8px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <div class="img-upload-area" id="speakingImgUpload" onclick="document.getElementById('speakingImgInput').click()">
+            <span data-i18n="uploadImg">📷 上传题目图片</span>
+          </div>
+          <input type="file" id="speakingImgInput" accept="image/jpeg,image/png,image/gif" style="display:none" onchange="handleImageUpload(this, 'speakingImgPreview')">
+          <div class="img-preview-wrap">
+            <img class="img-preview" id="speakingImgPreview" alt="题目图片预览">
+            <button class="img-preview-remove" id="speakingImgRemove" style="display:none" onclick="removeImage('speakingImgInput','speakingImgPreview','speakingImgRemove')">✕</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:12px;">
+          <button class="btn btn-primary btn-lg" onclick="analyzeSpeaking()">🔍 <span data-i18n="startAnalysis">开始分析</span></button>
+          <button class="btn btn-outline btn-lg" onclick="clearSpeakingPanel()">🔄 <span data-i18n="clear">清空</span></button>
+          <span style="font-size:12px;color:var(--text-light);align-self:center" data-i18n="shortcutHint">💡 提示：Ctrl+Enter 快捷分析</span>
+        </div>
+      </div>
+      <div id="speakingResult" style="display:none"></div>
+    </div>
+
+    <!-- ==================== Panel 3: 作文批改 ==================== -->
+    <div class="panel" id="essay-panel">
+      <div class="card">
+        <div class="card-header"><span class="icon">✏️</span><span data-i18n="essayTitle">HSK作文批改</span></div>
+        <div class="card-subtitle" data-i18n="essaySubtitle">粘贴你的HSK作文，系统将自动检查错误并按HSK标准评分</div>
+        <div class="input-row">
+          <div style="flex:1;min-width:200px">
+            <label data-i18n="essayTopic">作文题目</label>
+            <input type="text" id="essayTopic" placeholder="例如：谈谈你对环保的看法" style="padding:8px 12px;border:1.5px solid var(--text-light);border-radius:6px;font-size:14px;width:100%;">
+          </div>
+          <div>
+            <label data-i18n="essayLevel">目标等级</label>
+            <select id="essayLevel">
+              <option value="3">HSK 三级</option><option value="4" selected>HSK 四级</option>
+              <option value="5">HSK 五级</option><option value="6">HSK 六级</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="essayInput" placeholder="请在此粘贴你的HSK作文..."></textarea>
+        <!-- Image Upload for Essay -->
+        <div style="margin-top:8px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <div class="img-upload-area" id="essayImgUpload" onclick="document.getElementById('essayImgInput').click()">
+            <span data-i18n="uploadImg">📷 上传题目图片</span>
+          </div>
+          <input type="file" id="essayImgInput" accept="image/jpeg,image/png,image/gif" style="display:none" onchange="handleImageUpload(this, 'essayImgPreview')">
+          <div class="img-preview-wrap">
+            <img class="img-preview" id="essayImgPreview" alt="题目图片预览">
+            <button class="img-preview-remove" id="essayImgRemove" style="display:none" onclick="removeImage('essayImgInput','essayImgPreview','essayImgRemove')">✕</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:12px;">
+          <button class="btn btn-primary btn-lg" onclick="analyzeEssay()">🔍 <span data-i18n="startCorrection">开始批改</span></button>
+          <button class="btn btn-outline btn-lg" onclick="clearEssayPanel()">🔄 <span data-i18n="clear">清空</span></button>
+          <span style="font-size:12px;color:var(--text-light);align-self:center" data-i18n="shortcutHint">💡 提示：Ctrl+Enter 快捷批改</span>
+        </div>
+      </div>
+      <div id="essayResult" style="display:none"></div>
+    </div>
+
+    <!-- ==================== Panel 4: 学习技巧 ==================== -->
+    <div class="panel" id="tips-panel">
+      <div class="card">
+        <div class="card-header"><span class="icon">💡</span><span data-i18n="tipsTitle">学习及考试技巧</span></div>
+        <div class="card-subtitle" data-i18n="tipsSubtitle">掌握科学的备考方法和考试技巧，提升HSK/HSKK成绩</div>
+        <div class="tips-tabs" id="tipsTabs">
+          <button class="tips-tab active" data-tip="hsk-listening"><span data-i18n="tipListening">🎧 听力技巧</span></button>
+          <button class="tips-tab" data-tip="hsk-reading"><span data-i18n="tipReading">📖 阅读技巧</span></button>
+          <button class="tips-tab" data-tip="hsk-writing"><span data-i18n="tipWriting">✍️ 写作技巧</span></button>
+          <button class="tips-tab" data-tip="hskk-pronunciation"><span data-i18n="tipPronunciation">🗣 口语发音技巧</span></button>
+          <button class="tips-tab" data-tip="hskk-fluency"><span data-i18n="tipFluency">💨 流利度技巧</span></button>
+          <button class="tips-tab" data-tip="hskk-content"><span data-i18n="tipContent">📝 内容组织技巧</span></button>
+        </div>
+        <div class="tips-content" id="tipsContent"></div>
+      </div>
+    </div>
+
+    <!-- ==================== Panel: 作业批改 (Auto-Grading) ==================== -->
+    <div class="panel" id="auto-grading-panel">
+      <!-- Input Card -->
+      <div class="card">
+        <div class="card-header"><span class="icon">📝</span><span data-i18n="agInputSection">📝 作业输入</span></div>
+        <div class="card-subtitle" data-i18n="agShortcutHint">💡 提示：Ctrl+Enter 快捷批改</div>
+        <textarea id="agTextInput" class="ag-text-input" data-i18n-placeholder="agInputPlaceholder" placeholder="请在此粘贴或输入汉语作业内容（建议 50–500 字）；也可直接 Ctrl+V 粘贴截图"></textarea>
+        <!-- Image Upload Area -->
+        <div class="ag-img-dropzone" id="agImgDropzone">
+          <div class="drop-icon">🖼</div>
+          <div class="drop-text" data-i18n="agImgUploadText">🖼 点击或拖拽上传作业图片</div>
+          <div class="drop-hint" data-i18n="agImgUploadHint">支持 JPG/PNG/GIF/WebP；输入框内也可 Ctrl+V 粘贴截图，每张 ≤ 2MB</div>
+        </div>
+        <input type="file" id="agImgInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" multiple>
+        <!-- Image Previews -->
+        <div class="ag-img-previews" id="agImgPreviews"></div>
+        <!-- OCR Hint -->
+        <div class="ag-ocr-hint" id="agOcrHint" style="display:none">
+          <span>📷</span><span data-i18n="agImgOcrHint">💡 已上传图片，可点击下方按钮自动识别文字</span>
+          <button class="btn btn-primary btn-sm" id="agBtnOCR" style="margin-left:auto;white-space:nowrap" data-i18n="agBtnOCR">🔍 识别图片文字</button>
+        </div>
+        <!-- Char Count + Buttons -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px;">
+          <span id="agCharCount" style="font-size:12px;color:var(--text-light)" data-i18n="agCharCount">字数: 0</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" id="agBtnClear" data-i18n="agClear">清空内容</button>
+            <button class="btn btn-outline btn-sm" id="agBtnDemo" data-i18n="agLoadDemo">📋 载入示例</button>
+            <button class="btn btn-primary" id="agBtnSubmit" data-i18n="agSubmit">🔍 开始批改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Section -->
+      <div class="card" id="agResultsCard" style="display:none">
+        <div class="card-header"><span class="icon">📊</span><span data-i18n="agResultsTitle">📊 批改结果</span></div>
+        <!-- Tabs -->
+        <div class="ag-tabs" id="agTabs">
+          <button class="ag-tab active" data-ag-tab="overview" data-i18n="agTabOverview">综合总览</button>
+          <button class="ag-tab" data-ag-tab="details" data-i18n="agTabDetails">详细批注</button>
+          <button class="ag-tab" data-ag-tab="optimized" data-i18n="agTabOptimized">优化版本</button>
+          <div style="margin-left:auto;display:flex;gap:4px;">
+            <button class="btn btn-ghost btn-sm" onclick="AutoGrader.copyResults()" data-i18n="agBtnCopy" title="复制结果">📋</button>
+            <button class="btn btn-ghost btn-sm" onclick="AutoGrader.doGrading()" data-i18n="agBtnRetry" title="重新批改">🔄</button>
+          </div>
+        </div>
+        <!-- Tab Panels -->
+        <div class="ag-tab-panel" id="agPanelOverview"></div>
+        <div class="ag-tab-panel hidden" id="agPanelDetails"></div>
+        <div class="ag-tab-panel hidden" id="agPanelOptimized"></div>
+      </div>
+
+      <!-- History Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="icon">📋</span><span data-i18n="agHistoryTitle">📋 批改历史记录</span>
+          <span id="agHistoryCount" style="font-size:12px;color:var(--text-light);margin-left:8px"></span>
+        </div>
+        <div id="agHistoryEmpty">
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p data-i18n="agHistoryEmpty">暂无历史记录，批改后的结果会自动保存在这里。</p>
+          </div>
+        </div>
+        <div id="agHistoryList" style="max-height:400px;overflow-y:auto"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;" id="agHistoryActions" hidden>
+          <button class="btn btn-danger btn-sm" id="agBtnClearHistory" data-i18n="agHistoryClearAll">🗑 清除全部</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Panel 5: 历史记录 ==================== -->
+    <div class="panel" id="history-panel">
+      <div class="card">
+        <div class="card-header"><span class="icon">📁</span><span data-i18n="historyTitle">历史分析记录</span></div>
+        <div class="card-subtitle" data-i18n="historySubtitle">所有分析记录自动保存在本地浏览器中，刷新页面不丢失</div>
+        <div id="historyContent">
+          <div class="empty-state"><div class="empty-icon">📭</div><p data-i18n="noHistory">暂无历史记录</p><p style="font-size:12px;color:var(--text-light)" data-i18n="autoSave">完成分析后会自动保存到此处</p></div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:12px;" id="historyActions" hidden>
+          <button class="btn btn-danger" onclick="clearAllHistory()" data-i18n="clearAllHistory">🗑 清空所有历史</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">分析中...</div>
+  <div class="progress-bar" style="width:200px;margin-top:16px;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+</div>
+
+<!-- HSK Standards Modal -->
+<div class="modal-overlay hidden" id="standardsModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeStandardsModal()">✕</button>
+    <h3 id="modalStandardsTitle">📋 HSK官方评分标准</h3>
+    <h4 style="margin:12px 0 8px;color:var(--primary)">HSK 笔试（1-6级）<br><span style="font-size:12px;color:#888">HSK Письменный экзамен (Уровни 1-6)</span></h4>
+    <table class="standards-table">
+      <thead><tr><th>等级<br><span style="font-size:10px;color:#888">Уровень</span></th><th>听力<br><span style="font-size:10px;color:#888">Аудирование</span></th><th>阅读<br><span style="font-size:10px;color:#888">Чтение</span></th><th>写作<br><span style="font-size:10px;color:#888">Письмо</span></th><th>总分<br><span style="font-size:10px;color:#888">Общий балл</span></th><th>及格线<br><span style="font-size:10px;color:#888">Проходной балл</span></th></tr></thead>
+      <tbody>
+        <tr><td>HSK 一级</td><td>100</td><td>100</td><td>-</td><td>200</td><td>120</td></tr>
+        <tr><td>HSK 二级</td><td>100</td><td>100</td><td>-</td><td>200</td><td>120</td></tr>
+        <tr><td>HSK 三级</td><td>100</td><td>100</td><td>100</td><td>300</td><td>180</td></tr>
+        <tr><td>HSK 四级</td><td>100</td><td>100</td><td>100</td><td>300</td><td>180</td></tr>
+        <tr><td>HSK 五级</td><td>100</td><td>100</td><td>100</td><td>300</td><td>180</td></tr>
+        <tr><td>HSK 六级</td><td>100</td><td>100</td><td>100</td><td>300</td><td>180</td></tr>
+      </tbody>
+    </table>
+    <h4 style="margin:16px 0 8px;color:var(--accent)">HSKK 口语考试<br><span style="font-size:12px;color:#888">HSKK Устный экзамен</span></h4>
+    <table class="standards-table">
+      <thead><tr><th>等级<br><span style="font-size:10px;color:#888">Уровень</span></th><th>总分<br><span style="font-size:10px;color:#888">Общий балл</span></th><th>及格线<br><span style="font-size:10px;color:#888">Проходной балл</span></th><th>考察内容<br><span style="font-size:10px;color:#888">Содержание</span></th></tr></thead>
+      <tbody>
+        <tr><td>HSKK 初级</td><td>100</td><td>60</td><td>听后重复、听后回答、回答问题</td></tr>
+        <tr><td>HSKK 中级</td><td>100</td><td>60</td><td>听后重复、看图说话、回答问题</td></tr>
+        <tr><td>HSKK 高级</td><td>100</td><td>60</td><td>听后复述、朗读、回答问题</td></tr>
+      </tbody>
+    </table>
+    <h4 style="margin:16px 0 8px;color:var(--text-dark)">评分维度说明<br><span style="font-size:12px;color:#888">Критерии оценки</span></h4>
+    <p style="font-size:13px;color:var(--text-mid);line-height:1.8;">
+      <strong>流利度 / Беглость：</strong>语速自然、停顿合理、表达连贯<br>
+      <span style="color:#888;font-size:12px">Естественный темп, разумные паузы, связное выражение</span><br>
+      <strong>准确性 / Точность：</strong>语法正确、用词恰当、发音标准<br>
+      <span style="color:#888;font-size:12px">Правильная грамматика, уместная лексика, стандартное произношение</span><br>
+      <strong>丰富度 / Богатство：</strong>词汇多样、句式变化、内容充实<br>
+      <span style="color:#888;font-size:12px">Разнообразная лексика, вариативные конструкции, содержательность</span>
+    </p>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// i18n System
+// ============================================================
+let currentLang = 'zh';
+const i18n = {
+  zh: {
+    headerTitle: 'HSK考试成绩分析专家平台', headerSubtitle: '专业 · 精准 · 高效',
+    navScore: '成绩分析', navSpeaking: '口语分析', navEssay: '作文批改',
+    navTips: '学习技巧', navHistory: '历史记录',
+    scoreTitle: '上传HSK成绩单', scoreSubtitle: '支持Excel (.xlsx, .xls) 和 CSV 格式的成绩单文件',
+    uploadText: '点击上传或拖拽文件到此处',
+    hskLevel: 'HSK等级', studentName: '考生姓名（可选）',
+    totalScore: '总分', listeningScore: '听力得分', readingScore: '阅读得分',
+    writingScore: '写作得分', passStatus: '是否通过',
+    radarChart: '🎯 得分雷达图', barChart: '📊 各题型柱状图', trendChart: '📈 进步趋势图',
+    weaknessAnalysis: '🔍 薄弱知识点分析', suggestions: '💡 个性化学习建议',
+    exportPDF: '📄 导出PDF报告', clearCurrent: '🔄 清空当前内容',
+    speakingTitle: '口语答题分析（专家级）',
+    speakingSubtitle: '粘贴你的HSK口语回答文本，系统将按HSKK官方标准进行精准多维度分析',
+    topicQuestion: '题目/话题', targetLevel: '目标等级',
+    uploadImg: '📷 上传题目图片',
+    startAnalysis: '开始分析', startCorrection: '开始批改', clear: '清空',
+    essayTitle: 'HSK作文批改',
+    essaySubtitle: '粘贴你的HSK作文，系统将自动检查错误并按HSK标准评分',
+    essayTopic: '作文题目', essayLevel: '目标等级',
+    tipsTitle: '学习及考试技巧',
+    tipsSubtitle: '掌握科学的备考方法和考试技巧，提升HSK/HSKK成绩',
+    tipListening: '🎧 听力技巧', tipReading: '📖 阅读技巧', tipWriting: '✍️ 写作技巧',
+    tipPronunciation: '🗣 口语发音技巧', tipFluency: '💨 流利度技巧', tipContent: '📝 内容组织技巧',
+    historyTitle: '历史分析记录',
+    historySubtitle: '所有分析记录自动保存在本地浏览器中，刷新页面不丢失',
+    noHistory: '暂无历史记录', autoSave: '完成分析后会自动保存到此处',
+    clearAllHistory: '🗑 清空所有历史', btnStandards: '📋 评分标准',
+    loadingAnalysis: '分析中...', loadingEssay: '正在批改作文...', loadingFile: '正在解析文件...',
+    loadingPDF: '正在生成PDF报告...',
+    toastParseSuccess: '成绩单解析成功！', toastParseError: '文件解析失败，请检查文件格式',
+    toastNoData: '文件中没有数据', toastNoText: '请先输入口语回答文本',
+    toastShort: '回答文本太短，请输入完整的口语回答', toastEssayShort: '作文内容太短，请输入完整的作文',
+    toastSpeakingDone: '口语分析完成！', toastEssayDone: '作文批改完成！',
+    toastClearDone: '已清空当前内容', toastCopied: '已复制到剪贴板！',
+    toastCopyFail: '复制失败，请手动复制', toastPDFFail: 'PDF生成失败，请重试',
+    toastHistoryLoad: '已加载历史记录', toastHistoryDelete: '已删除记录',
+    toastHistoryClear: '所有历史记录已清空',
+    confirmClearHistory: '确定要清空所有历史记录吗？此操作不可撤销。',
+    practiceBtn: '📝 做小练习', showAnswer: '👁 查看答案', hideAnswer: '🙈 隐藏答案',
+    modalStandardsTitle: '📋 HSK官方评分标准',
+    shortcutHint: '💡 提示：Ctrl+Enter 快捷分析',
+    scoreStandardsL12: 'HSK {level}级：总分200分（听力100+阅读100），及格线120分',
+    scoreStandardsL36: 'HSK {level}级：总分300分（听力100+阅读100+写作100），及格线180分',
+    // Auto-Grading i18n
+    navAutoGrading: '作业批改',
+    agInputSection: '📝 作业输入',
+    agInputPlaceholder: '请在此粘贴或输入汉语作业内容（建议 50–500 字）；也可直接 Ctrl+V 粘贴截图',
+    agToastImagePasted: '已添加 {n} 张图片，请参考图片输入文字',
+    agSubmit: '🔍 开始批改', agClear: '清空内容', agLoadDemo: '📋 载入示例',
+    agCharCount: '字数', agResultsTitle: '📊 批改结果',
+    agResultsEmpty: '尚未批改，请在左侧输入作业内容后点击「开始批改」。',
+    agTabOverview: '综合总览', agTabDetails: '详细批注', agTabOptimized: '优化版本',
+    agOverviewScore: '综合评分', agOverviewGrade: '等级', agOverviewComment: '评语',
+    agOverviewStats: '统计数据', agOverviewTotalChars: '总字数', agOverviewUniqueChars: '不重复字数',
+    agOverviewTypoCount: '疑似错别字', agOverviewGrammarCount: '语法问题',
+    agOverviewRichness: '词汇丰富度', agOverviewRepeatCount: '重复用词数',
+    agDetailsTypoSection: '错别字 / 用字建议', agDetailsGrammarSection: '语法 / 表达问题',
+    agDetailsVocabSection: '词汇 / 重复分析',
+    agDetailsNoTypo: '未发现明显错别字，继续保持！',
+    agDetailsNoGrammar: '未发现明显语法问题，表达流畅！',
+    agDetailsPosition: '位置', agDetailsContext: '上下文',
+    agDetailsOriginal: '原文', agDetailsCount: '出现次数',
+    agOptimizedTitle: '修改后的优化版本',
+    agOptimizedHint: '以下是根据检测到的问题自动修正后的版本，修改处已用高亮标出。',
+    agOptimizedNoChanges: '原文已很好，无需修改！',
+    agErrorTypo: '错别字', agErrorGrammar: '语法错误', agErrorCollocation: '搭配不当',
+    agErrorWordOrder: '语序问题', agErrorRedundant: '冗余表达', agErrorMissing: '成分缺失',
+    agErrorParticle: '助词问题', agErrorMeasure: '量词问题', agErrorRepeat: '重复用词',
+    agRichnessHigh: '优秀', agRichnessMedium: '良好', agRichnessLow: '偏低',
+    agGradeA: '优秀', agGradeB: '良好', agGradeC: '一般', agGradeD: '需改进', agGradeF: '需重写',
+    agHistoryTitle: '📋 批改历史记录',
+    agHistoryEmpty: '暂无历史记录，批改后的结果会自动保存在这里。',
+    agHistoryClearAll: '🗑 清除全部',
+    agHistoryClearConfirm: '确定要清除所有批改历史记录吗？此操作不可撤销。',
+    agHistoryCount: '条记录', agHistoryViewDetail: '查看', agHistoryDelete: '删除',
+    agHistoryRestore: '恢复到编辑区',
+    agBtnRetry: '重新批改', agBtnCopy: '复制结果',
+    agToastCopied: '已复制到剪贴板！', agToastEmpty: '请输入作业内容后再批改。',
+    agToastTooShort: '文本太短（少于5字），无法有效批改。',
+    agToastHistoryCleared: '批改历史记录已清除。', agToastHistoryDeleted: '记录已删除。',
+    agImgUploadText: '🖼 点击或拖拽上传作业图片', agImgUploadHint: '支持 JPG/PNG/GIF/WebP；输入框内也可 Ctrl+V 粘贴截图，每张 ≤ 2MB',
+    agImgOcrHint: '💡 已上传图片，可点击按钮使用 AI 自动识别文字（需配置 API Key）',
+    agImgRemoveTitle: '删除图片',
+    agShortcutHint: '💡 提示：Ctrl+Enter 快捷批改；输入框内可 Ctrl+V 粘贴作业截图',
+    agBtnOCR: '🤖 AI 识别图片文字',
+    agBtnApiKey: '⚙ API Key',
+    agApiKeyTitle: 'API Key 设置',
+    agApiKeyHint: '输入阿里百炼 API Key 以使用千问视觉模型识别图片中的中文文字。Key 仅保存在本地浏览器。',
+    agApiKeySaved: 'API Key 已保存！',
+    agApiKeyRemoved: 'API Key 已移除',
+    agApiKeyRemove: '移除 Key',
+  },
+  en: {
+    headerTitle: 'HSK Exam Analysis Expert Platform', headerSubtitle: 'Professional · Precise · Efficient',
+    navScore: 'Score Analysis', navSpeaking: 'Speaking Analysis', navEssay: 'Essay Correction',
+    navTips: 'Study Tips', navHistory: 'History',
+    scoreTitle: 'Upload HSK Score Report', scoreSubtitle: 'Supports Excel (.xlsx, .xls) and CSV formats',
+    uploadText: 'Click or drag file here to upload',
+    hskLevel: 'HSK Level', studentName: 'Student Name (optional)',
+    totalScore: 'Total Score', listeningScore: 'Listening', readingScore: 'Reading',
+    writingScore: 'Writing', passStatus: 'Pass/Fail',
+    radarChart: '🎯 Score Radar', barChart: '📊 Section Bar Chart', trendChart: '📈 Progress Trend',
+    weaknessAnalysis: '🔍 Weakness Analysis', suggestions: '💡 Learning Suggestions',
+    exportPDF: '📄 Export PDF', clearCurrent: '🔄 Clear Content',
+    speakingTitle: 'Speaking Analysis (Expert Level)',
+    speakingSubtitle: 'Paste your HSK speaking answer for precise multi-dimensional analysis based on HSKK standards',
+    topicQuestion: 'Topic/Question', targetLevel: 'Target Level',
+    uploadImg: '📷 Upload Question Image',
+    startAnalysis: 'Analyze', startCorrection: 'Correct', clear: 'Clear',
+    essayTitle: 'HSK Essay Correction',
+    essaySubtitle: 'Paste your HSK essay for automatic error checking and HSK-standard scoring',
+    essayTopic: 'Essay Topic', essayLevel: 'Target Level',
+    tipsTitle: 'Study & Exam Tips',
+    tipsSubtitle: 'Master scientific preparation methods and exam techniques to boost your HSK/HSKK scores',
+    tipListening: '🎧 Listening Tips', tipReading: '📖 Reading Tips', tipWriting: '✍️ Writing Tips',
+    tipPronunciation: '🗣 Pronunciation Tips', tipFluency: '💨 Fluency Tips', tipContent: '📝 Content Tips',
+    historyTitle: 'Analysis History',
+    historySubtitle: 'All analysis records are automatically saved in your local browser',
+    noHistory: 'No history yet', autoSave: 'Records will be saved here after analysis',
+    clearAllHistory: '🗑 Clear All History', btnStandards: '📋 Standards',
+    loadingAnalysis: 'Analyzing...', loadingEssay: 'Correcting essay...', loadingFile: 'Parsing file...',
+    loadingPDF: 'Generating PDF...',
+    toastParseSuccess: 'File parsed successfully!', toastParseError: 'File parsing failed. Please check the format.',
+    toastNoData: 'No data found in file', toastNoText: 'Please enter your speaking answer first',
+    toastShort: 'Answer is too short. Please enter a complete response.',
+    toastEssayShort: 'Essay is too short. Please write a complete essay.',
+    toastSpeakingDone: 'Speaking analysis complete!', toastEssayDone: 'Essay correction complete!',
+    toastClearDone: 'Content cleared', toastCopied: 'Copied to clipboard!',
+    toastCopyFail: 'Copy failed, please copy manually', toastPDFFail: 'PDF generation failed, please retry',
+    toastHistoryLoad: 'History loaded', toastHistoryDelete: 'Record deleted',
+    toastHistoryClear: 'All history cleared',
+    confirmClearHistory: 'Are you sure you want to clear all history? This cannot be undone.',
+    practiceBtn: '📝 Practice', showAnswer: '👁 Show Answer', hideAnswer: '🙈 Hide Answer',
+    modalStandardsTitle: '📋 HSK Official Scoring Standards',
+    shortcutHint: '💡 Tip: Ctrl+Enter to analyze',
+    scoreStandardsL12: 'HSK {level}: Total 200 (Listening 100 + Reading 100), Pass 120',
+    scoreStandardsL36: 'HSK {level}: Total 300 (Listening 100 + Reading 100 + Writing 100), Pass 180',
+    // Auto-Grading i18n
+    navAutoGrading: 'Homework Grading',
+    agInputSection: '📝 Homework Input',
+    agInputPlaceholder: 'Paste or type homework here (50–500 chars); Ctrl+V to paste screenshots',
+    agToastImagePasted: 'Added {n} image(s) — type text based on the image',
+    agSubmit: '🔍 Start Grading', agClear: 'Clear', agLoadDemo: '📋 Load Demo',
+    agCharCount: 'Characters', agResultsTitle: '📊 Grading Results',
+    agResultsEmpty: 'No grading yet. Enter homework content and click "Start Grading".',
+    agTabOverview: 'Overview', agTabDetails: 'Details', agTabOptimized: 'Optimized',
+    agOverviewScore: 'Score', agOverviewGrade: 'Grade', agOverviewComment: 'Comment',
+    agOverviewStats: 'Statistics', agOverviewTotalChars: 'Total Characters', agOverviewUniqueChars: 'Unique Characters',
+    agOverviewTypoCount: 'Typos', agOverviewGrammarCount: 'Grammar Issues',
+    agOverviewRichness: 'Vocabulary Richness', agOverviewRepeatCount: 'Repeated Words',
+    agDetailsTypoSection: 'Typos / Character Suggestions', agDetailsGrammarSection: 'Grammar / Expression Issues',
+    agDetailsVocabSection: 'Vocabulary / Repetition Analysis',
+    agDetailsNoTypo: 'No obvious typos found, keep it up!',
+    agDetailsNoGrammar: 'No obvious grammar issues found, well expressed!',
+    agDetailsPosition: 'Position', agDetailsContext: 'Context',
+    agDetailsOriginal: 'Original', agDetailsCount: 'Occurrences',
+    agOptimizedTitle: 'Optimized Version',
+    agOptimizedHint: 'Below is the auto-corrected version based on detected issues. Changes are highlighted.',
+    agOptimizedNoChanges: 'The original text is already good, no changes needed!',
+    agErrorTypo: 'Typo', agErrorGrammar: 'Grammar Error', agErrorCollocation: 'Collocation',
+    agErrorWordOrder: 'Word Order', agErrorRedundant: 'Redundant', agErrorMissing: 'Missing Component',
+    agErrorParticle: 'Particle Issue', agErrorMeasure: 'Measure Word', agErrorRepeat: 'Repeated Word',
+    agRichnessHigh: 'Excellent', agRichnessMedium: 'Good', agRichnessLow: 'Low',
+    agGradeA: 'Excellent', agGradeB: 'Good', agGradeC: 'Average', agGradeD: 'Needs Improvement', agGradeF: 'Rewrite',
+    agHistoryTitle: '📋 Grading History',
+    agHistoryEmpty: 'No history yet. Grading results will be saved here automatically.',
+    agHistoryClearAll: '🗑 Clear All',
+    agHistoryClearConfirm: 'Are you sure you want to clear all grading history? This cannot be undone.',
+    agHistoryCount: 'records', agHistoryViewDetail: 'View', agHistoryDelete: 'Delete',
+    agHistoryRestore: 'Restore to Editor',
+    agBtnRetry: 'Re-grade', agBtnCopy: 'Copy Results',
+    agToastCopied: 'Copied to clipboard!', agToastEmpty: 'Please enter homework content first.',
+    agToastTooShort: 'Text is too short (less than 5 characters) for grading.',
+    agToastHistoryCleared: 'Grading history cleared.', agToastHistoryDeleted: 'Record deleted.',
+    agImgUploadText: '🖼 Click or drag to upload homework image', agImgUploadHint: 'JPG/PNG/GIF/WebP; Ctrl+V in the text box to paste screenshots, max 2MB each',
+    agImgOcrHint: '💡 Images uploaded — click the button to AI-recognize text (API Key required)',
+    agImgRemoveTitle: 'Remove image',
+    agShortcutHint: '💡 Tip: Ctrl+Enter to grade; Ctrl+V in the text box to paste screenshots',
+    agBtnOCR: '🤖 AI Recognize Text',
+    agBtnApiKey: '⚙ API Key',
+    agApiKeyTitle: 'API Key Settings',
+    agApiKeyHint: 'Enter your Alibaba Bailian API Key to use Qwen Vision for Chinese text recognition. Key is stored locally in your browser only.',
+    agApiKeySaved: 'API Key saved!',
+    agApiKeyRemoved: 'API Key removed',
+    agApiKeyRemove: 'Remove Key',
+  },
+  ru: {
+    headerTitle: 'HSK Платформа анализа экзаменов', headerSubtitle: 'Профессионально · Точно · Эффективно',
+    navScore: 'Анализ результатов', navSpeaking: 'Анализ устной речи', navEssay: 'Проверка сочинения',
+    navTips: 'Учебные советы', navHistory: 'История',
+    scoreTitle: 'Загрузить результаты HSK', scoreSubtitle: 'Поддерживает форматы Excel (.xlsx, .xls) и CSV',
+    uploadText: 'Нажмите или перетащите файл сюда',
+    hskLevel: 'Уровень HSK', studentName: 'Имя студента (необязательно)',
+    totalScore: 'Общий балл', listeningScore: 'Аудирование', readingScore: 'Чтение',
+    writingScore: 'Письмо', passStatus: 'Сдано?',
+    radarChart: '🎯 Радар оценок', barChart: '📊 Столбчатая диаграмма', trendChart: '📈 График прогресса',
+    weaknessAnalysis: '🔍 Анализ слабых мест', suggestions: '💡 Рекомендации',
+    exportPDF: '📄 Экспорт PDF', clearCurrent: '🔄 Очистить',
+    speakingTitle: 'Анализ устной речи (экспертный)',
+    speakingSubtitle: 'Вставьте текст устного ответа HSK для точного многомерного анализа по стандартам HSKK',
+    topicQuestion: 'Тема/вопрос', targetLevel: 'Целевой уровень',
+    uploadImg: '📷 Загрузить изображение задания',
+    startAnalysis: 'Анализировать', startCorrection: 'Проверить', clear: 'Очистить',
+    essayTitle: 'Проверка сочинения HSK',
+    essaySubtitle: 'Вставьте ваше сочинение HSK для автоматической проверки ошибок и оценки по стандартам HSK',
+    essayTopic: 'Тема сочинения', essayLevel: 'Целевой уровень',
+    tipsTitle: 'Советы по обучению и экзамену',
+    tipsSubtitle: 'Освойте научные методы подготовки и экзаменационные техники для повышения баллов HSK/HSKK',
+    tipListening: '🎧 Советы по аудированию', tipReading: '📖 Советы по чтению', tipWriting: '✍️ Советы по письму',
+    tipPronunciation: '🗣 Советы по произношению', tipFluency: '💨 Советы по беглости', tipContent: '📝 Организация содержания',
+    historyTitle: 'История анализов',
+    historySubtitle: 'Все записи анализа автоматически сохраняются в вашем браузере',
+    noHistory: 'Истории пока нет', autoSave: 'Записи будут сохранены здесь после анализа',
+    clearAllHistory: '🗑 Очистить историю', btnStandards: '📋 Критерии',
+    loadingAnalysis: 'Анализ...', loadingEssay: 'Проверка сочинения...', loadingFile: 'Обработка файла...',
+    loadingPDF: 'Создание PDF...',
+    toastParseSuccess: 'Файл успешно обработан!', toastParseError: 'Ошибка обработки файла. Проверьте формат.',
+    toastNoData: 'Данные не найдены', toastNoText: 'Пожалуйста, введите текст ответа',
+    toastShort: 'Ответ слишком короткий. Введите полный ответ.',
+    toastEssayShort: 'Сочинение слишком короткое. Напишите полное сочинение.',
+    toastSpeakingDone: 'Анализ устной речи завершен!', toastEssayDone: 'Проверка сочинения завершена!',
+    toastClearDone: 'Содержимое очищено', toastCopied: 'Скопировано в буфер обмена!',
+    toastCopyFail: 'Не удалось скопировать', toastPDFFail: 'Не удалось создать PDF',
+    toastHistoryLoad: 'История загружена', toastHistoryDelete: 'Запись удалена',
+    toastHistoryClear: 'Вся история очищена',
+    confirmClearHistory: 'Вы уверены, что хотите очистить всю историю? Это действие нельзя отменить.',
+    practiceBtn: '📝 Упражнение', showAnswer: '👁 Показать ответ', hideAnswer: '🙈 Скрыть ответ',
+    modalStandardsTitle: '📋 HSK Официальные критерии оценки',
+    shortcutHint: '💡 Подсказка: Ctrl+Enter для анализа',
+    scoreStandardsL12: 'HSK {level}: всего 200 (Аудирование 100 + Чтение 100), проходной 120',
+    scoreStandardsL36: 'HSK {level}: всего 300 (Аудирование 100 + Чтение 100 + Письмо 100), проходной 180',
+    // Auto-Grading i18n
+    navAutoGrading: 'Проверка заданий',
+    agInputSection: '📝 Ввод задания',
+    agInputPlaceholder: 'Вставьте текст (50–500 иероглифов); Ctrl+V — вставить скриншот',
+    agToastImagePasted: 'Добавлено изображений: {n}. Введите текст по картинке',
+    agSubmit: '🔍 Начать проверку', agClear: 'Очистить', agLoadDemo: '📋 Загрузить пример',
+    agCharCount: 'Знаков', agResultsTitle: '📊 Результаты проверки',
+    agResultsEmpty: 'Проверка ещё не проводилась. Введите текст и нажмите «Начать проверку».',
+    agTabOverview: 'Общий обзор', agTabDetails: 'Подробные замечания', agTabOptimized: 'Оптимизированная версия',
+    agOverviewScore: 'Общая оценка', agOverviewGrade: 'Уровень', agOverviewComment: 'Комментарий',
+    agOverviewStats: 'Статистика', agOverviewTotalChars: 'Всего иероглифов', agOverviewUniqueChars: 'Уникальных иероглифов',
+    agOverviewTypoCount: 'Возможные опечатки', agOverviewGrammarCount: 'Грамматические ошибки',
+    agOverviewRichness: 'Лексическое разнообразие', agOverviewRepeatCount: 'Повторяющихся слов',
+    agDetailsTypoSection: 'Опечатки / Рекомендации по иероглифам', agDetailsGrammarSection: 'Грамматические и стилистические проблемы',
+    agDetailsVocabSection: 'Анализ лексики и повторов',
+    agDetailsNoTypo: 'Явных опечаток не обнаружено, отличная работа!',
+    agDetailsNoGrammar: 'Явных грамматических проблем не обнаружено!',
+    agDetailsPosition: 'Позиция', agDetailsContext: 'Контекст',
+    agDetailsOriginal: 'Исходный текст', agDetailsCount: 'Кол-во',
+    agOptimizedTitle: 'Оптимизированная версия',
+    agOptimizedHint: 'Ниже представлена автоматически исправленная версия. Изменения выделены.',
+    agOptimizedNoChanges: 'Исходный текст уже хорош, правки не требуются!',
+    agErrorTypo: 'Опечатка', agErrorGrammar: 'Грамматическая ошибка', agErrorCollocation: 'Неверное сочетание',
+    agErrorWordOrder: 'Порядок слов', agErrorRedundant: 'Избыточность', agErrorMissing: 'Пропуск компонента',
+    agErrorParticle: 'Проблема с частицей', agErrorMeasure: 'Проблема со счётным словом', agErrorRepeat: 'Повтор слова',
+    agRichnessHigh: 'Отлично', agRichnessMedium: 'Хорошо', agRichnessLow: 'Низкое',
+    agGradeA: 'Отлично', agGradeB: 'Хорошо', agGradeC: 'Удовлетворительно', agGradeD: 'Требует доработки', agGradeF: 'Требует переписывания',
+    agHistoryTitle: '📋 История проверок',
+    agHistoryEmpty: 'История пуста. Результаты проверок будут сохраняться здесь автоматически.',
+    agHistoryClearAll: '🗑 Очистить всё',
+    agHistoryClearConfirm: 'Вы уверены, что хотите удалить всю историю проверок? Это действие необратимо.',
+    agHistoryCount: 'записей', agHistoryViewDetail: 'Смотреть', agHistoryDelete: 'Удалить',
+    agHistoryRestore: 'Восстановить',
+    agBtnRetry: 'Проверить заново', agBtnCopy: 'Копировать',
+    agToastCopied: 'Скопировано в буфер обмена!', agToastEmpty: 'Пожалуйста, введите текст перед проверкой.',
+    agToastTooShort: 'Текст слишком короткий (менее 5 иероглифов) для проверки.',
+    agToastHistoryCleared: 'История проверок очищена.', agToastHistoryDeleted: 'Запись удалена.',
+    agImgUploadText: '🖼 Нажмите или перетащите изображение задания', agImgUploadHint: 'JPG/PNG/GIF/WebP; Ctrl+V в поле ввода — вставить скриншот, макс 2MB',
+    agImgOcrHint: '💡 Изображения загружены — нажмите кнопку для распознавания текста (нужен API Key)',
+    agImgRemoveTitle: 'Удалить изображение',
+    agShortcutHint: '💡 Ctrl+Enter — проверка; Ctrl+V в поле ввода — вставить скриншот',
+    agBtnOCR: '🤖 Распознать текст',
+    agBtnApiKey: '⚙ API Key',
+    agApiKeyTitle: 'Настройка API Key',
+    agApiKeyHint: 'Введите API Key Alibaba Bailian для распознавания текста с помощью модели Qwen Vision. Ключ хранится только в браузере.',
+    agApiKeySaved: 'API Key сохранён!',
+    agApiKeyRemoved: 'API Key удалён',
+    agApiKeyRemove: 'Удалить Key',
+  }
+};
+function t(key) { return (i18n[currentLang] && i18n[currentLang][key]) || (i18n.zh[key] || key); }
+function switchLanguage(lang) {
+  if (!i18n[lang]) return;
+  currentLang = lang;
+  localStorage.setItem('hsk_ui_lang', lang);
+  document.getElementById('langSelect').value = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (key) el.placeholder = t(key);
+  });
+  document.getElementById('headerTitle').textContent = t('headerTitle');
+  document.getElementById('headerSubtitle').textContent = t('headerSubtitle');
+  document.documentElement.lang = lang === 'ru' ? 'ru' : (lang === 'en' ? 'en' : 'zh-CN');
+  const activePanel = document.querySelector('.panel.active');
+  if (activePanel?.id === 'tips-panel') {
+    const activeTab = document.querySelector('.tips-tab.active');
+    renderTips(activeTab?.getAttribute('data-tip') || 'hsk-listening');
+  } else if (activePanel?.id === 'history-panel') {
+    renderHistory();
+  } else if (activePanel?.id === 'auto-grading-panel') {
+    AutoGrader.updateCharCount();
+    AutoGrader.renderHistory();
+    AutoGrader.rerenderResults();
+  }
+  if (currentSpeakingResult) renderSpeakingResult(currentSpeakingResult);
+  if (currentEssayResult) renderEssayResult(currentEssayResult);
+}
+
+// ============================================================
+// Bilingual Output Helper — secondary line follows UI language
+// zh: Chinese only | en: Chinese + English | ru: Chinese + Russian
+// ============================================================
+function biSecondary(en, ru) {
+  if (currentLang === 'zh') return '';
+  if (currentLang === 'en') return en || '';
+  if (currentLang === 'ru') return ru || '';
+  return '';
+}
+function biAltSpan(en, ru) {
+  const alt = biSecondary(en, ru);
+  return alt ? `<span class="bi-alt">${alt}</span>` : '';
+}
+function altFrom(item) {
+  if (!item) return '';
+  if (currentLang === 'en') return item.en || '';
+  if (currentLang === 'ru') return item.ru || '';
+  return '';
+}
+function bi(zh, en, ru) {
+  if (arguments.length === 2) { ru = en; en = ''; }
+  const alt = biSecondary(en, ru);
+  if (!alt) return zh;
+  return `<div>${zh}</div><span class="bi-alt">${alt}</span>`;
+}
+function biTitle(zh, en, ru) {
+  if (arguments.length === 2) { ru = en; en = ''; }
+  const alt = biSecondary(en, ru);
+  if (!alt) return `<div class="bi-section-title">${zh}</div>`;
+  return `<div class="bi-section-title">${zh}</div><span class="bi-alt">${alt}</span>`;
+}
+
+// ============================================================
+// Global State
+// ============================================================
+const HISTORY_KEY = 'hsk_analysis_history';
+let currentScoreData = null;
+let currentSpeakingResult = null;
+let currentEssayResult = null;
+let charts = { radar: null, bar: null, trend: null };
+
+function disposeAllCharts() {
+  Object.keys(charts).forEach(k => {
+    if (charts[k]) { charts[k].dispose(); charts[k] = null; }
+  });
+}
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`; toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0'; toast.style.transform = 'translateX(100px)'; toast.style.transition = '0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ============================================================
+// Loading
+// ============================================================
+function showLoading(text) {
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('loadingText').textContent = text || t('loadingAnalysis');
+  document.getElementById('progressFill').style.width = '0%';
+}
+function updateProgress(p) { document.getElementById('progressFill').style.width = p + '%'; }
+function hideLoading() { document.getElementById('loadingOverlay').classList.add('hidden'); }
+
+// ============================================================
+// Panel Switching
+// ============================================================
+function switchPanel(panelId, linkEl) {
+  const activePanel = document.querySelector('.panel.active');
+  if (activePanel && activePanel.id === 'score-panel' && panelId !== 'score-panel') {
+    disposeAllCharts();
+  }
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
+  document.querySelectorAll('.sidebar-nav li a').forEach(a => a.classList.remove('active'));
+  if (linkEl) linkEl.classList.add('active');
+  if (panelId === 'score-panel' && currentScoreData) {
+    setTimeout(() => { Object.values(charts).forEach(c => { if (c) { try { c.resize(); } catch(e) {} } }); }, 300);
+  }
+  if (panelId === 'history-panel') renderHistory();
+  if (panelId === 'tips-panel') renderTips('hsk-listening');
+  if (panelId === 'auto-grading-panel') { AutoGrader.updateCharCount(); AutoGrader.renderHistory(); }
+}
+
+// ============================================================
+// Image Upload
+// ============================================================
+function handleImageUpload(input, previewId) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.match(/^image\/(jpeg|png|gif)$/)) {
+    showToast('请上传 jpg、png 或 gif 格式的图片', 'error'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const preview = document.getElementById(previewId);
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    const removeBtn = document.getElementById(previewId.replace('Preview', 'Remove'));
+    if (removeBtn) removeBtn.style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+function removeImage(inputId, previewId, removeId) {
+  document.getElementById(inputId).value = '';
+  document.getElementById(previewId).style.display = 'none';
+  document.getElementById(previewId).src = '';
+  document.getElementById(removeId).style.display = 'none';
+}
+
+// ============================================================
+// File Upload & Drag
+// ============================================================
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault(); uploadArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0]; if (file) handleFileUpload(file);
+});
+
+function handleFileUpload(file) {
+  if (!file) return;
+  showLoading(t('loadingFile')); updateProgress(30);
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      updateProgress(60); let data;
+      if (file.name.endsWith('.csv')) { data = parseCSV(e.target.result); }
+      else {
+        const workbook = XLSX.read(e.target.result, { type: 'array' });
+        data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      }
+      updateProgress(90); processScoreData(data); updateProgress(100);
+      setTimeout(hideLoading, 400); showToast(t('toastParseSuccess'), 'success');
+    } catch(err) {
+      hideLoading(); showToast(t('toastParseError'), 'error'); console.error(err);
+    }
+  };
+  if (file.name.endsWith('.csv')) { reader.readAsText(file); } else { reader.readAsArrayBuffer(file); }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/[""]/g, ''));
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/[""]/g, ''));
+    const row = {}; headers.forEach((h, idx) => { row[h] = values[idx]; });
+    result.push(row);
+  }
+  return result;
+}
+
+// ============================================================
+// Score Data Processing
+// ============================================================
+function processScoreData(data) {
+  if (!data || data.length === 0) { showToast(t('toastNoData'), 'error'); return; }
+  const normalizeKey = (row, keys) => {
+    for (const k of keys) {
+      for (const rk of Object.keys(row)) {
+        if (rk.includes(k) || rk.toLowerCase() === k.toLowerCase()) return parseFloat(row[rk]) || 0;
+      }
+    }
+    return 0;
+  };
+  const scores = data.map(row => ({
+    listening: normalizeKey(row, ['听力','listening','Listening']),
+    reading: normalizeKey(row, ['阅读','reading','Reading']),
+    writing: normalizeKey(row, ['写作','writing','Writing']),
+    total: normalizeKey(row, ['总分','total','Total']),
+    date: normalizeKey(row, ['日期','date','Date']) || row['日期'] || row['date'] || '',
+  }));
+  scores.forEach(s => { if (!s.total) s.total = s.listening + s.reading + s.writing; });
+  const latest = scores[scores.length - 1];
+  const level = parseInt(document.getElementById('hskLevel').value);
+  const passLine = level <= 2 ? 120 : 180;
+  const maxScore = level <= 2 ? 200 : 300;
+  currentScoreData = { scores, latest, level, passLine, maxScore };
+  renderScoreAnalysis();
+  saveToHistory('score', { scores, level, studentName: document.getElementById('studentName').value });
+}
+
+function renderScoreAnalysis() {
+  disposeAllCharts();
+  const d = currentScoreData; if (!d) return;
+  const { latest, level, passLine, maxScore, scores } = d;
+  const passed = latest.total >= passLine;
+  document.getElementById('totalScore').textContent = latest.total;
+  document.getElementById('listeningScore').textContent = latest.listening || '--';
+  document.getElementById('readingScore').textContent = latest.reading || '--';
+  document.getElementById('writingScore').textContent = (level >= 3 ? latest.writing : '--') || '--';
+  document.getElementById('passStatus').textContent = passed ? '✓ 通过' : '✗ 未通过';
+  document.getElementById('passStatus').className = 'stat-value ' + (passed ? 'success' : 'danger');
+  renderRadarChart(latest, level); renderBarChart(latest, level, maxScore);
+  renderTrendChart(scores, passLine); renderWeaknessAnalysis(latest, level, maxScore);
+  renderSuggestions(latest, level, passed);
+  document.getElementById('weaknessCard').style.display = 'block';
+  document.getElementById('suggestionCard').style.display = 'block';
+}
+
+// ============================================================
+// Charts (preserved from original)
+// ============================================================
+function renderRadarChart(latest, level) {
+  const container = document.getElementById('radarChart');
+  if (charts.radar) charts.radar.dispose();
+  const indicators = level <= 2
+    ? [{ name: '听力', max: 100 }, { name: '阅读', max: 100 }]
+    : [{ name: '听力', max: 100 }, { name: '阅读', max: 100 }, { name: '写作', max: 100 }];
+  const values = level <= 2 ? [latest.listening, latest.reading] : [latest.listening, latest.reading, latest.writing];
+  charts.radar = echarts.init(container);
+  charts.radar.setOption({
+    tooltip: { trigger: 'item' },
+    legend: { data: ['你的得分', '及格线'], bottom: 0 },
+    radar: { center: ['50%','48%'], radius: '65%', indicator: indicators, axisName: { color: '#4E5969', fontSize: 13 } },
+    series: [{
+      type: 'radar', data: [
+        { value: values, name: '你的得分', areaStyle: { color: 'rgba(22,93,255,0.2)' }, lineStyle: { color: '#165DFF', width: 2 }, itemStyle: { color: '#165DFF' }, symbol: 'circle', symbolSize: 6 },
+        { value: level <= 2 ? [60,60] : [60,60,60], name: '及格线', areaStyle: { color: 'rgba(255,125,0,0.1)' }, lineStyle: { color: '#FF7D00', width: 1.5, type: 'dashed' }, itemStyle: { color: '#FF7D00' }, symbol: 'diamond', symbolSize: 5 }
+      ]
+    }]
+  });
+}
+
+function renderBarChart(latest, level, maxScore) {
+  const container = document.getElementById('barChart');
+  if (charts.bar) charts.bar.dispose();
+  const categories = level <= 2 ? ['听力','阅读','总分'] : ['听力','阅读','写作','总分'];
+  const values = level <= 2 ? [latest.listening, latest.reading, latest.total] : [latest.listening, latest.reading, latest.writing, latest.total];
+  const maxValues = level <= 2 ? [100,100,200] : [100,100,100,maxScore];
+  charts.bar = echarts.init(container);
+  charts.bar.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '8%', right: '8%', top: '10%', bottom: '8%' },
+    xAxis: { type: 'category', data: categories, axisLabel: { color: '#4E5969', fontSize: 13 }, axisLine: { lineStyle: { color: '#C9CDD4' } } },
+    yAxis: { type: 'value', max: Math.max(...maxValues), axisLabel: { color: '#4E5969' }, splitLine: { lineStyle: { color: '#F2F3F5' } } },
+    series: [
+      { name: '你的得分', type: 'bar', data: values.map((v,i) => ({ value: v, itemStyle: { color: v >= maxValues[i]*0.6 ? '#165DFF' : (v >= maxValues[i]*0.4 ? '#FF7D00' : '#F53F3F'), borderRadius: [6,6,0,0] } })), barWidth: '40%', label: { show: true, position: 'top', color: '#4E5969', fontSize: 13, fontWeight: 600 } },
+      { name: '及格线', type: 'bar', data: maxValues.map((v,i) => (i === maxValues.length-1 ? (level<=2?120:180) : 60)), barWidth: '40%', barGap: '-100%', itemStyle: { color: 'transparent', borderColor: '#FF7D00', borderWidth: 1.5, borderType: 'dashed', borderRadius: [6,6,0,0] }, label: { show: false } }
+    ]
+  });
+}
+
+function renderTrendChart(scores, passLine) {
+  const container = document.getElementById('trendChart');
+  if (charts.trend) charts.trend.dispose();
+  const dates = scores.map((s,i) => s.date || `第${i+1}次`);
+  const listening = scores.map(s => s.listening);
+  const reading = scores.map(s => s.reading);
+  const writing = scores.map(s => s.writing);
+  const totals = scores.map(s => s.total);
+  charts.trend = echarts.init(container);
+  const series = [
+    { name: '总分', type: 'line', data: totals, smooth: true, lineStyle: { width:3, color:'#165DFF' }, itemStyle: { color:'#165DFF' }, symbol: 'circle', symbolSize: 8 },
+    { name: '听力', type: 'line', data: listening, smooth: true, lineStyle: { width:2, color:'#00B42A' }, itemStyle: { color:'#00B42A' }, symbol: 'diamond', symbolSize: 6 },
+    { name: '阅读', type: 'line', data: reading, smooth: true, lineStyle: { width:2, color:'#FF7D00' }, itemStyle: { color:'#FF7D00' }, symbol: 'triangle', symbolSize: 7 }
+  ];
+  if (scores.some(s => s.writing > 0)) series.push({ name: '写作', type: 'line', data: writing, smooth: true, lineStyle: { width:2, color:'#9B59B6' }, itemStyle: { color:'#9B59B6' }, symbol: 'rect', symbolSize: 6 });
+  series.push({ name: '及格线', type: 'line', data: Array(scores.length).fill(passLine), lineStyle: { type:'dashed', color:'#F53F3F', width:1.5 }, itemStyle: { color:'#F53F3F' }, symbol: 'none' });
+  charts.trend.setOption({
+    tooltip: { trigger: 'axis' }, legend: { bottom: 0, textStyle: { fontSize:12 } },
+    grid: { left:'5%', right:'5%', top:'5%', bottom:'12%' },
+    xAxis: { type:'category', data: dates, axisLabel: { color:'#4E5969', fontSize:12 } },
+    yAxis: { type:'value', axisLabel: { color:'#4E5969' }, splitLine: { lineStyle: { color:'#F2F3F5' } } },
+    series: series
+  });
+}
+
+// ============================================================
+// Weakness Analysis & Suggestions
+// ============================================================
+function renderWeaknessAnalysis(latest, level, maxScore) {
+  const container = document.getElementById('weaknessContent');
+  const weaknesses = [], sections = [];
+  if (latest.listening < 60) { weaknesses.push('听力得分较低，需要加强听力训练<br><span class="bi-ru">Низкий балл за аудирование, необходимо усилить тренировку</span>'); sections.push('听力理解'); }
+  if (latest.reading < 60) { weaknesses.push('阅读得分较低，需要加强阅读理解能力<br><span class="bi-ru">Низкий балл за чтение, необходимо улучшить понимание</span>'); sections.push('阅读理解'); }
+  if (level >= 3 && latest.writing < 60) { weaknesses.push('写作得分较低，需要加强写作表达能力<br><span class="bi-ru">Низкий балл за письмо, необходимо улучшить навыки</span>'); sections.push('书面表达'); }
+  const listeningRate = latest.listening/100, readingRate = latest.reading/100;
+  const writingRate = level >= 3 ? latest.writing/100 : 1;
+  if (listeningRate < readingRate && listeningRate < writingRate) weaknesses.push('听力是当前最薄弱的环节，建议优先提升<br><span class="bi-ru">Аудирование — самое слабое место, советуем улучшить в первую очередь</span>');
+  if (readingRate < listeningRate && readingRate < writingRate) weaknesses.push('阅读是当前最薄弱的环节<br><span class="bi-ru">Чтение — самое слабое место</span>');
+  if (level >= 3 && writingRate < listeningRate && writingRate < readingRate) weaknesses.push('写作是当前最薄弱的环节<br><span class="bi-ru">Письмо — самое слабое место</span>');
+  if (latest.listening >= 50 && latest.listening < 70) weaknesses.push('听力处于中等水平，加强精听训练可快速提升<br><span class="bi-ru">Аудирование на среднем уровне, интенсивная тренировка поможет</span>');
+  if (latest.reading >= 50 && latest.reading < 70) weaknesses.push('阅读处于中等水平，扩大词汇量可有效提升<br><span class="bi-ru">Чтение на среднем уровне, расширение словарного запаса поможет</span>');
+  if (level >= 3 && latest.writing >= 50 && latest.writing < 70) weaknesses.push('写作处于中等水平，多练习常用句型和段落结构<br><span class="bi-ru">Письмо на среднем уровне, практикуйте конструкции и структуру</span>');
+  if (weaknesses.length === 0) weaknesses.push('各项表现均衡且优秀，继续保持当前学习节奏！<br><span class="bi-ru">Отличные результаты по всем разделам, продолжайте в том же духе!</span>');
+  container.innerHTML = `<ul class="weakness-list">${weaknesses.map(w => `<li><span class="dot">•</span><div>${w}</div></li>`).join('')}</ul>${sections.length > 0 ? `<div style="margin-top:12px"><span class="tag tag-warning">需提升模块：${sections.join('、')}<br><span style="font-size:10px;color:#888">Разделы для улучшения: ${sections.join(', ')}</span></span></div>` : ''}`;
+}
+
+function renderSuggestions(latest, level, passed) {
+  const container = document.getElementById('suggestionContent');
+  const suggestions = [];
+  if (latest.listening < 60) suggestions.push({ icon:'🎧', text:'每天坚持30分钟HSK听力练习，重点训练对关键信息的抓取能力', ru:'Слушайте HSK 30 минут в день, фокусируйтесь на ключевой информации' });
+  else if (latest.listening < 80) suggestions.push({ icon:'🎧', text:'听力已达标但还有提升空间，建议增加新闻、访谈等真实语料的听力练习', ru:'Добавьте прослушивание новостей и интервью для улучшения адаптации' });
+  if (latest.reading < 60) suggestions.push({ icon:'📖', text:'每日阅读2-3篇HSK对应级别的短文，重点训练快速阅读和细节理解能力', ru:'Читайте 2-3 коротких текста уровня HSK ежедневно' });
+  else if (latest.reading < 80) suggestions.push({ icon:'📖', text:'阅读能力良好，建议扩大阅读范围，阅读中文报纸、杂志和简单文学作品', ru:'Расширьте круг чтения: газеты, журналы, литература' });
+  if (level >= 3) {
+    if (latest.writing < 60) suggestions.push({ icon:'✍️', text:'每周写2-3篇短文（200-400字），重点练习HSK常考话题，注意"的、地、得"的正确用法', ru:'Пишите 2-3 сочинения в неделю (200-400 иероглифов)' });
+    else if (latest.writing < 80) suggestions.push({ icon:'✍️', text:'写作能力尚可，建议学习更多连接词和高级句式，提高文章的连贯性和表达深度', ru:'Изучайте союзы и сложные конструкции для улучшения связности' });
+  }
+  suggestions.push({ icon:'📝', text:`建议每2周做一次HSK ${level}级模拟测试，检验学习效果并及时调整学习计划`, ru:`Делайте пробный тест HSK ${level} каждые 2 недели` });
+  if (!passed) suggestions.push({ icon:'🎯', text:`距离HSK ${level}级及格线还差${(level<=2?120:180) - latest.total}分，建议重点突破薄弱环节`, ru:`Не хватает ${(level<=2?120:180) - latest.total} баллов до проходного, сосредоточьтесь на слабых местах` });
+  else suggestions.push({ icon:'🏆', text:'恭喜通过！建议挑战更高级别，持续提升中文水平', ru:'Поздравляем! Рекомендуем перейти на следующий уровень' });
+  container.innerHTML = suggestions.map(s => `<div class="result-block"><h4>${s.icon} ${s.text}</h4><span class="bi-ru">${s.ru}</span></div>`).join('');
+}
+
+// ============================================================
+// HSKK Vocabulary Collocation Knowledge Base
+// ============================================================
+const vocabDB = {
+  '眼光': {
+    verbs: ['开阔眼光','培养眼光','锻炼眼光','提高眼光','有眼光','没有眼光','用发展的眼光看问题'],
+    adjs: ['长远的眼光','独特的眼光','独到的眼光','审美的眼光','商业的眼光'],
+    errors: [
+      { wrong: /对眼光(有|很)好(处)?|有利眼光/g, fix: '开阔眼光 / 开阔眼界', msg: '"对眼光有好处"是错误搭配，正确说法是"开阔眼光"或"开阔眼界"', ru: '«对眼光有好处» — неправильное сочетание, правильно: «开阔眼光» или «开阔眼界»' },
+      { wrong: /获得眼光|取得眼光/g, fix: '培养自己的眼光 / 提高我们的眼光', msg: '"获得眼光"是错误搭配，正确说法是"培养自己的眼光"或"提高我们的眼光"', ru: '«获得眼光» — неправильно, правильно: «培养自己的眼光» или «提高我们的眼光»' },
+    ],
+    rus: {
+      '开阔眼光': 'расширить кругозор', '培养眼光': 'развить эстетический вкус',
+      '锻炼眼光': 'потренировать способность суждения', '提高眼光': 'повысить свой вкус',
+      '有眼光': 'быть проницательным', '没有眼光': 'не иметь чутья',
+      '用发展的眼光看问题': 'смотреть на проблемы с точки зрения развития',
+      '长远的眼光': 'дальновидность', '独特的眼光': 'уникальный взгляд',
+      '独到的眼光': 'проницательный взгляд', '审美的眼光': 'эстетический вкус',
+      '商业的眼光': 'бизнес-чутье'
+    }
+  }
+};
+
+// Common expressions for speaking
+const commonExpressions = [
+  { zh: '口才好', ru: 'хорошее красноречие' },
+  { zh: '善于言谈', ru: 'уметь общаться' },
+  { zh: '谈吐得体', ru: 'тактичная речь' },
+  { zh: '风趣幽默', ru: 'юмористичный' },
+  { zh: '擅长沟通', ru: 'уметь общаться' },
+];
+
+// ============================================================
+// Expert HSKK Speaking Analysis — sentence-level rules (offline)
+// ============================================================
+const HSKK_SENTENCE_CHECKS = [
+  { re: /在(?:图片|照片|画)里.*在(?:跑|走|做)/, issueZh: '表达不地道，"在图片里她在跑步"应改为更自然的进行时描述',
+    fixZh: '图片里她正在跑步，看起来像是在参加跑步比赛',
+    en: 'Awkward phrasing; say "In the picture she is running and seems to be in a race."',
+    ru: 'Неестественная формулировка; лучше: «На фото она бежит, похоже, участвует в забеге».' },
+  { re: /参加.*跑步比赛[中]?/, issueZh: '"参加比赛"搭配可更自然',
+    fixZh: '看起来像是在参加跑步比赛 / 刚刚赢得了这场跑步比赛',
+    en: 'Collocation can be smoother: "seems to be in a running race" / "just won the race".',
+    ru: 'Сочетание можно улучшить: «участвует в беге» / «только что выиграла».' },
+  { re: /看上去很愉快(?:的)?.*兴奋|看上去很愉快/, issueZh: '"看上去很愉快的"搭配不当',
+    fixZh: '她看起来既开心又兴奋',
+    en: '"看上去很愉快的" is awkward; use "She looks happy and excited."',
+    ru: '«看上去很愉快的» — неверно; лучше «Она выглядит радостной и взволнованной».' },
+  { re: /连说不完|说不完有这么多/, issueZh: '表达生硬',
+    fixZh: '做运动对身体有非常多好处，多得说不完',
+    en: 'Awkward; use "so many benefits you can\'t list them all."',
+    ru: 'Неестественно; лучше «пользы так много, что не перечислить».' },
+  { re: /跟.*一起度过时间/, issueZh: '"度过时间"搭配不当，应与"时光/时光"搭配',
+    fixZh: '还是和家人朋友一起度过时光的好机会',
+    en: 'Use "spend time" → "spend quality time together" / "a good chance to spend time with family and friends".',
+    ru: '«度过时间» — неверное сочетание; правильно «проводить время/досуг».' },
+  { re: /赢了(?:这个|这场)?比赛/, issueZh: '时态可更准确',
+    fixZh: '我觉得她已经赢得了这场比赛',
+    en: 'Use "has already won" for completed result.',
+    ru: 'Лучше «уже выиграла этот забег» (завершённое действие).' },
+  { re: /做运动对.*有非常多好处/, issueZh: '句式可更精炼连贯',
+    fixZh: '运动不仅能让我们更健康，还能帮助我们放松，也是和家人朋友一起度过时光的好机会',
+    en: 'Merge ideas with connectors like "not only... but also..." for smoother flow.',
+    ru: 'Объедините идеи союзами «не только…, но и…» для связности.' },
+  { re: /在我看来.*做运动/, issueZh: '段落过渡可更自然，宜先承接图片场景再拓展',
+    fixZh: '看到她这么开心的样子，我想到了运动给我们带来的好处……',
+    en: 'Add a transition from the picture to your extension, e.g. "Seeing how happy she looks, I thought about the benefits of exercise…"',
+    ru: 'Добавьте переход от картинки к рассуждению: «Увидев её радость, я подумал о пользе спорта…»' },
+  { re: /总的来说.*做运动十分重要/, issueZh: '结尾可更精炼有力',
+    fixZh: '总的来说，运动在我们的生活中非常重要',
+    en: 'Conclusion can be tighter: "In short, exercise is very important in our lives."',
+    ru: 'Заключение: «В целом спорт очень важен в нашей жизни».' },
+];
+
+function analyzeHSKKSentences(text) {
+  const sentences = text.split(/[。！？!?\n]+/).map(s => s.trim()).filter(s => s.length > 4);
+  const issues = [];
+  let deduction = 0;
+  for (const s of sentences) {
+    for (const rule of HSKK_SENTENCE_CHECKS) {
+      if (rule.re.test(s)) {
+        issues.push({
+          original: `「${s}」`,
+          suggestion: rule.fixZh,
+          detail: rule.issueZh,
+          deduction: 2,
+          en: rule.en,
+          ru: rule.ru,
+          type: 'sentence'
+        });
+        deduction += 2;
+        break;
+      }
+    }
+  }
+  return { issues, deduction: Math.min(deduction, 15) };
+}
+
+function detectPictureSpeaking(text) {
+  return /图片|照片|画|看图|图中|照片里/.test(text) && /跑|比赛|运动|赢|终点|冲线/.test(text);
+}
+
+function buildExpertStrengths(text, result) {
+  const strengths = [];
+  const isPicture = detectPictureSpeaking(text);
+  if (isPicture) {
+    strengths.push({
+      zh: '场景判断精准，细节捕捉到位：准确识别了图片中的核心场景（如跑步、比赛、冲线等），描述了人物动作、情绪和环境，推测合理。',
+      en: 'Accurate scene reading: you identified the core situation (running, race, finish line) and described actions, emotions, and setting well.',
+      ru: 'Точное понимание сцены: верно определили бег, соревнование, финиш; описали действия, эмоции и обстановку.'
+    });
+  }
+  if (/运动|健康|放松|好处|社交|家人|朋友/.test(text)) {
+    strengths.push({
+      zh: '观点拓展贴合主题，内容完整：从图片场景延伸到「运动的好处」，列举了健康、放松、社交等多个方面，结构完整，符合 HSKK 中级看图说话要求。',
+      en: 'Strong thematic extension: you linked the image to benefits of exercise (health, relaxation, social life) with a complete structure.',
+      ru: 'Удачное развитие темы: от картинки к пользе спорта (здоровье, отдых, общение) — структура полная.'
+    });
+  }
+  if (/高兴|开心|愉快|兴奋|快乐|喜悦/.test(text)) {
+    strengths.push({
+      zh: '表达自然，情感真挚：用「愉快、兴奋」等词描述人物状态，结尾总结运动的重要性，表达真实不空洞。',
+      en: 'Natural tone and genuine emotion: words like "happy" and "excited" make the description vivid, not empty.',
+      ru: 'Естественный тон и искренние эмоции: «радость», «возбуждение» делают описание живым.'
+    });
+  }
+  if (result.foundPatterns.length >= 3) {
+    strengths.push({
+      zh: `语法结构多样：使用了${result.foundPatterns.slice(0, 4).map(p => p.name).join('、')}等句式，语言层次较好。`,
+      en: `Varied grammar: you used patterns such as ${result.foundPatterns.slice(0, 4).map(p => p.en || p.name).join(', ')}.`,
+      ru: `Разнообразная грамматика: ${result.foundPatterns.slice(0, 4).map(p => p.ru).join(', ')}.`
+    });
+  }
+  if (strengths.length === 0) {
+    strengths.push({
+      zh: '基础表达完整，语义清晰，能够围绕题目进行连贯陈述。',
+      en: 'Clear basic expression with coherent ideas around the topic.',
+      ru: 'Базовое выражение полное, мысли изложены связно.'
+    });
+  }
+  return strengths.slice(0, 4);
+}
+
+function buildExpertTips(text, result) {
+  const tips = [];
+  const isPicture = detectPictureSpeaking(text);
+  if (result.grammarDeduction > 0) {
+    tips.push({
+      zh: '修正基础语法，优化句式：把零散短句用「不仅…还…」「既…又…」等关联词连接，使表达更连贯。',
+      en: 'Fix basic grammar and link short sentences with "not only...but also", "both...and".',
+      ru: 'Исправьте грамматику и соединяйте фразы союзами «не только…, но и…», «и…, и…».'
+    });
+  }
+  if (isPicture) {
+    tips.push({
+      zh: '强化图片细节描述：加入「冲过终点线、高举双手、脸上的笑容」等细节，让场景更具体，更容易说满 2 分钟。',
+      en: 'Add visual details: finish line, raised hands, smile — to fill ~2 minutes naturally.',
+      ru: 'Добавьте детали: финиш, поднятые руки, улыбка — чтобы говорить ~2 минуты.'
+    });
+    tips.push({
+      zh: '让拓展与图片结合更紧密：把「运动的好处」与「赢得比赛的喜悦」结合，如「努力后获得胜利的感觉，也是运动给我们的礼物」。',
+      en: 'Tie your extension to the image: link exercise benefits to the joy of winning.',
+      ru: 'Свяжите пользу спорта с радостью победы на фото.'
+    });
+  }
+  if (result.fluencyDeduction > 0) {
+    tips.push({
+      zh: '改善衔接：在拓展段前加过渡句（如「看到她这么开心，我想到了运动的好处」），减少生硬停顿感。',
+      en: 'Use transition sentences before extending your ideas to improve fluency.',
+      ru: 'Добавьте переходные фразы перед развитием темы для плавности.'
+    });
+  }
+  if (result.contentDeduction > 0) {
+    tips.push({
+      zh: '补充 1 个与图片相关的具体细节或简短个人经历，让内容更生动、更有画面感。',
+      en: 'Add one concrete detail from the picture or a brief personal example.',
+      ru: 'Добавьте конкретную деталь с картинки или короткий личный пример.'
+    });
+  }
+  if (tips.length === 0) {
+    tips.push({
+      zh: '继续保持！可挑战更高级别，并学习更多成语、俗语提升感染力。',
+      en: 'Keep it up! Try a higher HSKK level and more idiomatic expressions.',
+      ru: 'Продолжайте! Попробуйте более высокий уровень HSKK и идиомы.'
+    });
+  }
+  return tips.slice(0, 4);
+}
+
+function generateHighScorePictureSample(text, topic) {
+  const she = /她|女生|女孩/.test(text);
+  const subj = she ? '一个女生' : '一个人';
+  const pron = she ? '她' : '他';
+  const hasWin = /赢|胜利|冠军|第一/.test(text);
+  const winLine = hasWin
+    ? `我觉得${pron}刚刚赢得了这场跑步比赛，正沉浸在胜利的喜悦中。`
+    : `我觉得${pron}正在参加一场跑步比赛，离终点越来越近了。`;
+  return `我看到照片里有${subj}，${pron}穿着运动服，正在冲过终点线，高高举起双手，脸上带着灿烂的笑容，看起来既开心又兴奋。${winLine}
+
+看到${pron}的样子，我想到了运动给我们带来的很多好处。首先，运动能让我们的身体更健康，还能帮助我们放松心情、缓解压力。其次，运动也是和家人朋友一起度过时光的好机会，比如一起跑步、打球，不仅能锻炼身体，还能增进感情。就像${pron}一样，努力之后获得胜利的感觉，也能给我们带来满满的成就感和快乐。
+
+总的来说，运动在我们的生活中非常重要，它不仅能让我们的身体更健康，还能给我们带来很多快乐和积极的能量。`;
+}
+
+function getGradeRange(score) {
+  if (score >= 85) return '85-100分';
+  if (score >= 75) return '75-84分';
+  if (score >= 60) return '60-74分';
+  return '60分以下';
+}
+
+// ============================================================
+// Expert HSKK Speaking Analysis
+// ============================================================
+function analyzeSpeaking() {
+  const text = document.getElementById('speakingInput').value.trim();
+  const topic = document.getElementById('speakingTopic').value.trim();
+  const level = document.getElementById('speakingLevel').value;
+  if (!text) { showToast(t('toastNoText'), 'error'); return; }
+  showLoading(t('loadingAnalysis')); updateProgress(20);
+  setTimeout(() => {
+    updateProgress(50);
+    const result = performSpeakingAnalysis(text, level, topic);
+    updateProgress(80);
+    currentSpeakingResult = result;
+    renderSpeakingResult(result);
+    updateProgress(100);
+    setTimeout(hideLoading, 300);
+    saveToHistory('speaking', { text, topic, level, result });
+    showToast(t('toastSpeakingDone'), 'success');
+  }, 600);
+}
+
+function performSpeakingAnalysis(text, level, topic) {
+  const chars = text.replace(/[，。！？、；：""''（）\s\n\r,.!?;:()'"\s]/g, '');
+  const words = text.split(/[，。！？、；：\s]+/).filter(w => w.length > 0);
+  const uniqueChars = new Set(chars);
+
+  // Grammar patterns
+  const grammarPatterns = [
+    { name: '"把"字句', pattern: /把/g, weight: 2, en: '把-sentence', ru: 'Конструкция «把»' },
+    { name: '"被"字句', pattern: /被/g, weight: 2, en: '被-sentence', ru: 'Конструкция «被»' },
+    { name: '"比"字句（比较句）', pattern: /比/g, weight: 2, en: 'Comparative 比', ru: 'Сравнительная конструкция «比»' },
+    { name: '"了"表示完成', pattern: /了/g, weight: 1, en: '了 (completed)', ru: '«了» для завершенного действия' },
+    { name: '"着"表示持续', pattern: /着/g, weight: 2, en: '着 (ongoing)', ru: '«着» для продолжительного действия' },
+    { name: '"过"表示经历', pattern: /过/g, weight: 2, en: '过 (experience)', ru: '«过» для опыта' },
+    { name: '"是...的"强调句', pattern: /是.*的/g, weight: 3, en: '是...的 emphasis', ru: 'Эмфатическая конструкция «是...的»' },
+    { name: '"越来越..."', pattern: /越来越/g, weight: 2, en: '越来越 (more and more)', ru: '«越来越» — всё более' },
+    { name: '"因为...所以..."', pattern: /因为.*所以/g, weight: 1, en: '因为...所以', ru: '«因为...所以...» — причина-следствие' },
+    { name: '"虽然...但是..."', pattern: /虽然.*但是/g, weight: 2, en: '虽然...但是', ru: '«虽然...但是...» — уступка' },
+    { name: '"如果...就..."', pattern: /如果.*就/g, weight: 2, en: '如果...就', ru: '«如果...就...» — условие' },
+    { name: '"不但...而且..."', pattern: /不但.*而且/g, weight: 3, en: '不但...而且', ru: '«不但...而且...» — не только, но и' },
+  ];
+  const foundPatterns = grammarPatterns.filter(p => p.pattern.test(text));
+  const patternScore = foundPatterns.reduce((sum, p) => sum + p.weight, 0);
+
+  // === Grammar & Word Errors (扣1-2分/个, 严重扣3分) ===
+  const grammarErrors = [];
+  let grammarDeduction = 0;
+
+  // Check 的/地/得 misuse
+  const deMatches = text.match(/[^的]的(?!确|话|士|方|时|地|点|区)/g);
+  if (deMatches && deMatches.length > 2) {
+    grammarErrors.push({
+      original: '多处使用"的"', suggestion: '检查"的、地、得"的用法：名词前用"的"，动词前用"地"，补语前用"得"',
+      deduction: Math.min(deMatches.length, 5),
+      en: 'Check 的/地/得: 的 + noun, 地 + verb, 得 + complement.',
+      ru: 'Проверьте использование 的/地/得: 的 — перед сущ., 地 — перед глаг., 得 — перед дополнением'
+    });
+    grammarDeduction += Math.min(deMatches.length, 5);
+  }
+
+  // Check excessive 了
+  if (/了.*了.*了.*了/g.test(text)) {
+    grammarErrors.push({
+      original: '多次使用"了"', suggestion: '"了"通常每句使用1-2次即可，过多使用会让表达显得不自然',
+      deduction: 2,
+      ru: 'Слишком частое использование «了», достаточно 1-2 раз на предложение'
+    });
+    grammarDeduction += 2;
+  }
+
+  // Check 句式杂糅
+  if (/虽然.*但是.*但是/g.test(text) || /因为.*所以.*所以/g.test(text)) {
+    grammarErrors.push({
+      original: '句式杂糅', suggestion: '避免在同一个句子中重复使用关联词，保持句式清晰',
+      deduction: 3,
+      ru: 'Избегайте повторения союзов в одном предложении'
+    });
+    grammarDeduction += 3;
+  }
+
+  // Check 主语模糊
+  const sentences = text.split(/[。！？!?\n]+/).filter(s => s.trim().length > 0);
+  sentences.forEach(s => {
+    if (s.length > 20 && !/[你我他她它我们他们她们这是那]/.test(s.substring(0, 10))) {
+      // Long sentence without clear subject - flag once
+    }
+  });
+
+  // Check 重复累赘
+  const repeatPatterns = [/然后然后/g, /非常非常/g, /很很/g, /特别特别/g, /真的真的/g];
+  repeatPatterns.forEach(rp => {
+    if (rp.test(text)) {
+      grammarErrors.push({ original: '重复累赘', suggestion: '避免重复使用"然后"、"非常"等词语，使表达更简洁流畅', deduction: 1, ru: 'Избегайте повторения слов «然后», «非常»' });
+      grammarDeduction += 1;
+    }
+  });
+
+  // Check 搭配不当 via vocabDB
+  let vocabAlerts = [];
+  for (const [word, info] of Object.entries(vocabDB)) {
+    if (text.includes(word)) {
+      for (const err of info.errors) {
+        if (err.wrong.test(text)) {
+          vocabAlerts.push({ word, msg: err.msg, fix: err.fix, ru: err.ru });
+          grammarErrors.push({ original: `搭配不当：${err.msg}`, suggestion: `正确搭配：${err.fix}`, deduction: 2, ru: err.ru });
+          grammarDeduction += 2;
+        }
+      }
+      // Show available collocations
+      if (!vocabAlerts.some(a => a.word === word)) {
+        vocabAlerts.push({ word, msg: `"${word}"的常用搭配提醒`, fix: `正确搭配示例：${info.verbs.slice(0,3).join('、')}`, ru: `Правильные сочетания с «${word}»: ${info.verbs.slice(0,3).map(v => info.rus[v] || v).join(', ')}` });
+      }
+    }
+  }
+
+  // === Fluency Deduction (最多扣10分) ===
+  let fluencyDeduction = 0;
+  const fluencyErrors = [];
+  const avgSentenceLength = sentences.reduce((sum, s) => sum + s.length, 0) / Math.max(sentences.length, 1);
+
+  if (avgSentenceLength < 8) {
+    fluencyErrors.push({ original: '句子普遍偏短', suggestion: '使用连接词合并短句，使表达更连贯', deduction: 4, ru: 'Предложения слишком короткие, используйте союзы для связности' });
+    fluencyDeduction += 4;
+  }
+  if (sentences.every(s => s.length > 40)) {
+    fluencyErrors.push({ original: '句子普遍偏长', suggestion: '适当拆分长句，保持句式多样性', deduction: 3, ru: 'Предложения слишком длинные, разнообразьте длину' });
+    fluencyDeduction += 3;
+  }
+  if (foundPatterns.length < 2) {
+    fluencyErrors.push({ original: '句式单一', suggestion: '丰富句式结构，使用"把"字句、"被"字句等多样化表达', deduction: 3, ru: 'Однообразные конструкции, используйте разные типы предложений' });
+    fluencyDeduction += 3;
+  }
+
+  // === Content Deduction (最多扣10分) ===
+  let contentDeduction = 0;
+  const contentErrors = [];
+
+  if (chars.length < 50) {
+    contentErrors.push({ original: '内容过于简短', suggestion: '扩展回答内容，增加具体例子和个人观点', deduction: 5, ru: 'Слишком короткий ответ, добавьте примеры и личное мнение' });
+    contentDeduction += 5;
+  }
+  if (chars.length < 100 && chars.length >= 50) {
+    contentErrors.push({ original: '内容不够充实', suggestion: '可以增加1-2个具体例子来支撑观点', deduction: 3, ru: 'Добавьте 1-2 конкретных примера для обоснования' });
+    contentDeduction += 3;
+  }
+
+  // Word repetition
+  const wordFreq = {};
+  words.forEach(w => { wordFreq[w] = (wordFreq[w] || 0) + 1; });
+  const repeatedWords = Object.entries(wordFreq).filter(([_, c]) => c > 4 && _.length > 1);
+  if (repeatedWords.length > 0) {
+    contentErrors.push({
+      original: `词汇重复使用：${repeatedWords.slice(0,3).map(([w]) => `"${w}"`).join('、')}等`,
+      suggestion: '使用近义词替换重复词汇，增加表达丰富度',
+      deduction: 2,
+      ru: 'Повторяющиеся слова, используйте синонимы для разнообразия'
+    });
+    contentDeduction += 2;
+  }
+
+  // HSKK sentence-level expert checks (看图说话等)
+  const sentenceAnalysis = analyzeHSKKSentences(text);
+  for (const si of sentenceAnalysis.issues) {
+    grammarErrors.push(si);
+  }
+  grammarDeduction += sentenceAnalysis.deduction;
+
+  // === Score Calculation ===
+  const baseScore = 75;
+  grammarDeduction = Math.min(grammarDeduction, 30);
+  fluencyDeduction = Math.min(fluencyDeduction, 10);
+  contentDeduction = Math.min(contentDeduction, 10);
+
+  // Bonus for good patterns
+  let bonus = 0;
+  if (foundPatterns.length >= 5) bonus += 5;
+  if (chars.length > 150) bonus += 3;
+  if (foundPatterns.filter(p => p.weight >= 2).length >= 3) bonus += 3;
+
+  let overallScore = baseScore - grammarDeduction - fluencyDeduction - contentDeduction + bonus;
+  overallScore = Math.max(10, Math.min(100, Math.round(overallScore)));
+
+  // Level evaluation
+  let grade, gradeZh, gradeRu;
+  if (overallScore >= 85) { grade = 'excellent'; gradeZh = '优秀'; gradeRu = 'Отлично'; }
+  else if (overallScore >= 75) { grade = 'good'; gradeZh = '良好'; gradeRu = 'Хорошо'; }
+  else if (overallScore >= 60) { grade = 'pass'; gradeZh = '合格'; gradeRu = 'Сдано'; }
+  else { grade = 'fail'; gradeZh = '不合格'; gradeRu = 'Не сдано'; }
+  const passed = overallScore >= 60;
+
+  const isPicture = detectPictureSpeaking(text);
+  const partialResult = { foundPatterns, charCount: chars.length, grammarDeduction, fluencyDeduction, contentDeduction };
+  const strengths = buildExpertStrengths(text, partialResult);
+  const improvementTips = buildExpertTips(text, partialResult);
+  const gradeRange = getGradeRange(overallScore);
+
+  // Generate high-score sample answer
+  const highScoreAnswer = generateHighScoreSample(text, topic, level);
+
+  // Fluency / Accuracy / Richness scores (for compatibility)
+  const fluencyScore = Math.max(20, Math.min(100, 70 - fluencyDeduction + (foundPatterns.length >= 3 ? 10 : 0)));
+  const accuracyScore = Math.max(20, Math.min(100, 75 - grammarDeduction + (foundPatterns.length >= 4 ? 8 : 0)));
+  const richnessScore = Math.max(20, Math.min(100, 65 - contentDeduction + (chars.length > 100 ? 10 : 0) + (foundPatterns.length >= 5 ? 8 : 0)));
+
+  return {
+    charCount: chars.length, wordCount: words.length,
+    uniqueRatio: (uniqueChars.size / Math.max(chars.length, 1) * 100).toFixed(1),
+    avgSentenceLength: avgSentenceLength.toFixed(1),
+    sentences, foundPatterns,
+    grammarErrors, fluencyErrors, contentErrors,
+    grammarDeduction, fluencyDeduction, contentDeduction, bonus,
+    fluencyScore, accuracyScore, richnessScore,
+    overallScore, grade, gradeZh, gradeRu, gradeRange, passed,
+    level, topic, vocabAlerts, highScoreAnswer, strengths, improvementTips, isPicture
+  };
+}
+
+function generateHighScoreSample(text, topic, level) {
+  if (detectPictureSpeaking(text)) {
+    return generateHighScorePictureSample(text, topic);
+  }
+  const topicText = topic || '这个话题';
+  const samples = {
+    beginner: `关于${topicText}，我认为这是一个很有意思的话题。首先，它和我们的生活有很大的关系。其次，它对我的学习也有帮助。最后，我希望以后能了解更多关于这方面的知识。总的来说，我喜欢这个话题。`,
+    intermediate: `关于${topicText}，我有以下几点看法。首先，这个话题在现代社会中非常重要，因为它影响着每个人的日常生活。比如说，在我们的工作和学习中，我们都能感受到它的影响。其次，我们应该用发展的眼光来看待这个问题，不能只看眼前。此外，我认为每个人都可以为改善这个状况做出自己的努力。总之，这是一个值得我们深入思考的话题。`,
+    advanced: `谈到${topicText}，这是一个非常值得深入探讨的话题。从宏观角度来看，这个话题不仅关系到社会的发展，也与我们每个人的生活息息相关。第一，随着经济的快速发展和社会的不断进步，这个话题变得越来越重要。以我个人的经历为例，我曾在工作和生活中多次体会到它的影响。第二，我们应该培养长远的眼光，用发展的眼光看问题，而不是局限于眼前的利益。第三，解决这个问题需要社会各界的共同努力。综上所述，我相信只要我们持续关注并付诸行动，一定能取得积极的成果。`
+  };
+  return samples[level] || samples.intermediate;
+}
+
+function renderSpeakingResult(result) {
+  const container = document.getElementById('speakingResult');
+  container.style.display = 'block';
+  const levelNames = { beginner: 'HSKK 初级', intermediate: 'HSKK 中级', advanced: 'HSKK 高级' };
+  const levelNamesEn = { beginner: 'HSKK Beginner', intermediate: 'HSKK Intermediate', advanced: 'HSKK Advanced' };
+  const gradeColors = { excellent: '#165DFF', good: '#00B42A', pass: '#FF7D00', fail: '#F53F3F' };
+  const gradeEn = { excellent: 'Excellent', good: 'Good', pass: 'Pass', fail: 'Fail' };
+  const reportTitle = result.isPicture
+    ? bi(`${levelNames[result.level] || 'HSKK'}看图说话 评分解析`, `${levelNamesEn[result.level] || 'HSKK'} Picture Description Analysis`, `${levelNames[result.level] || 'HSKK'} Анализ описания картинки`)
+    : bi(`${levelNames[result.level] || 'HSKK'}口语评分解析`, `${levelNamesEn[result.level] || 'HSKK'} Speaking Analysis`, `${levelNames[result.level] || 'HSKK'} Анализ устной речи`);
+  let strengths = result.strengths || [];
+  let tips = result.improvementTips || [];
+  if (strengths.length === 0) {
+    strengths = [{ zh: '基础表达完整，能够围绕题目进行陈述。', en: 'Clear basic expression around the topic.', ru: 'Базовое выражение по теме.' }];
+  }
+  if (tips.length === 0) {
+    tips = [{ zh: '继续练习句式多样性与内容拓展。', en: 'Keep practicing varied sentences and richer content.', ru: 'Практикуйте разнообразие конструкций и содержание.' }];
+  }
+  const patternAlt = p => biSecondary(p.en, p.ru);
+
+  container.innerHTML = `
+    <div class="result-section">
+      <div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#f0f5ff,#fafbff)">
+        <h3 style="margin:0 0 8px;font-size:17px;color:var(--text-dark)">${reportTitle}</h3>
+        <p style="margin:0;font-size:13px;color:var(--text-mid)">${bi('满分100分，合格60分', 'Full score 100, pass 60', 'Максимум 100 баллов, проходной 60')}</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" style="color:${gradeColors[result.grade]}">${result.overallScore}</div>
+          <div class="stat-label">${bi('百分制分数 / 100', 'Score / 100', 'Балл / 100')}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:${gradeColors[result.grade]};font-size:18px">${result.gradeZh}</div>
+          <div class="stat-label">${bi(`等级（${result.gradeRange || ''}）`, `Grade (${result.gradeRange || ''})`, `Оценка (${result.gradeRange || ''})`)}${biAltSpan(gradeEn[result.grade], result.gradeRu)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value ${result.passed ? 'success' : 'danger'}">${result.passed ? '✓' : '✗'}</div>
+          <div class="stat-label">${bi(result.passed ? '合格' : '不合格', result.passed ? 'Pass' : 'Fail', result.passed ? 'Сдано' : 'Не сдано')}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${result.fluencyScore}</div>
+          <div class="stat-label">${bi('流利度', 'Fluency', 'Беглость')}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${result.accuracyScore}</div>
+          <div class="stat-label">${bi('准确性', 'Accuracy', 'Точность')}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${result.richnessScore}</div>
+          <div class="stat-label">${bi('丰富度', 'Richness', 'Богатство')}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">📊 ${bi('评分明细', 'Score breakdown', 'Детали оценки')}</div>
+        <div style="font-size:14px;color:var(--text-mid);line-height:1.9">
+          <div>${bi('基础分：75分', 'Base: 75', 'Базовый балл: 75')}</div>
+          ${result.grammarDeduction > 0 ? `<div>${bi(`语法与用词扣分：-${result.grammarDeduction}分`, `Grammar/vocabulary: -${result.grammarDeduction}`, `Грамматика: -${result.grammarDeduction}`)}</div>` : ''}
+          ${result.fluencyDeduction > 0 ? `<div>${bi(`流利度扣分：-${result.fluencyDeduction}分（上限10）`, `Fluency: -${result.fluencyDeduction} (max 10)`, `Беглость: -${result.fluencyDeduction}`)}</div>` : ''}
+          ${result.contentDeduction > 0 ? `<div>${bi(`内容与拓展扣分：-${result.contentDeduction}分（上限10）`, `Content: -${result.contentDeduction} (max 10)`, `Содержание: -${result.contentDeduction}`)}</div>` : ''}
+          ${result.bonus > 0 ? `<div>${bi(`加分：+${result.bonus}分`, `Bonus: +${result.bonus}`, `Бонус: +${result.bonus}`)}</div>` : ''}
+          <strong>${bi(`最终：${result.overallScore}分 → ${result.gradeZh}（${result.gradeRange}）`, `Final: ${result.overallScore} → ${gradeEn[result.grade]}`, `Итог: ${result.overallScore} → ${result.gradeRu}`)}</strong>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">✅ ${biTitle('核心优点', 'Strengths', 'Основные преимущества')}</div>
+        <ol style="font-size:14px;line-height:1.9;margin:0;padding-left:20px;color:var(--text-mid)">
+          ${strengths.map((s, i) => `<li style="margin-bottom:10px"><strong style="color:var(--text-dark)">${i + 1}.</strong> ${s.zh}${biAltSpan(s.en, s.ru)}</li>`).join('')}
+        </ol>
+      </div>
+
+      ${result.vocabAlerts.length > 0 ? `
+      <div class="card">
+        <div class="card-header">📚 ${bi('词汇搭配提醒', 'Collocation notes', 'Сочетаемость слов')}</div>
+        ${result.vocabAlerts.map(a => `
+          <div class="sentence-item highlight">
+            <div class="sentence-label expert">${a.word}</div>
+            <div>📝 ${a.msg}</div>
+            <div>💡 ${a.fix}</div>
+            ${biAltSpan(a.en, a.ru)}
+          </div>`).join('')}
+      </div>` : ''}
+
+      ${result.grammarErrors.length > 0 ? `
+      <div class="card">
+        <div class="card-header">❌ ${biTitle('语法与用词错误', 'Grammar & wording', 'Ошибки грамматики')} <span class="tag tag-danger">-${result.grammarDeduction}${bi('分', ' pts', ' балл.')}</span></div>
+        ${result.grammarErrors.map((e, i) => `
+          <div class="sentence-item original">
+            <div class="sentence-label error">${i + 1}. ${e.deduction ? bi(`扣${e.deduction}分`, `-${e.deduction} pt`, `-${e.deduction}`) : ''}</div>
+            <div style="margin-bottom:4px">📝 ${e.original}</div>
+            ${e.detail ? `<div style="font-size:13px;color:var(--text-mid);margin-bottom:4px">${e.detail}</div>` : ''}
+            <div>💡 <strong>${bi('建议', 'Suggestion', 'Совет')}：</strong>${e.suggestion}</div>
+            ${biAltSpan(e.en, e.ru)}
+          </div>`).join('')}
+      </div>` : ''}
+
+      ${result.fluencyErrors.length > 0 ? `
+      <div class="card">
+        <div class="card-header">💨 ${biTitle('流利度', 'Fluency', 'Беглость')} <span class="tag tag-warning">-${result.fluencyDeduction}</span></div>
+        ${result.fluencyErrors.map(e => `
+          <div class="sentence-item original">
+            <div>📝 ${e.original}</div>
+            <div>💡 ${e.suggestion}</div>
+            ${biAltSpan(e.en, e.ru)}
+          </div>`).join('')}
+      </div>` : ''}
+
+      ${result.contentErrors.length > 0 ? `
+      <div class="card">
+        <div class="card-header">📝 ${biTitle('内容与拓展', 'Content & extension', 'Содержание')} <span class="tag tag-warning">-${result.contentDeduction}</span></div>
+        ${result.contentErrors.map(e => `
+          <div class="sentence-item original">
+            <div>📝 ${e.original}</div>
+            <div>💡 ${e.suggestion}</div>
+            ${biAltSpan(e.en, e.ru)}
+          </div>`).join('')}
+      </div>` : ''}
+
+      <div class="card">
+        <div class="card-header">✅ ${bi('语法结构使用', 'Grammar patterns used', 'Грамматические конструкции')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          ${result.foundPatterns.length > 0
+            ? result.foundPatterns.map(p => `<span class="tag tag-info">${p.name}${patternAlt(p) ? `<br><span style="font-size:10px;color:#888">${patternAlt(p)}</span>` : ''}</span>`).join('')
+            : bi('未检测到常见语法结构，建议丰富句式', 'Few common patterns detected — diversify sentence types', 'Разнообразьте грамматические конструкции')}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">🎯 ${biTitle('提升建议', 'Improvement tips', 'Советы')}</div>
+        <ol style="font-size:14px;line-height:1.9;margin:0;padding-left:20px;color:var(--text-mid)">
+          ${tips.map((tip, i) => `<li style="margin-bottom:8px"><strong>${i + 1}.</strong> ${tip.zh}${biAltSpan(tip.en, tip.ru)}</li>`).join('')}
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card-header">📝 ${biTitle('高分示范版本', 'Model high-score answer', 'Образец ответа')}</div>
+        <div class="result-block">
+          <p style="line-height:2;font-size:14px;white-space:pre-wrap">${result.highScoreAnswer}</p>
+        </div>
+        <p style="font-size:12px;color:var(--text-light);margin-top:8px">💡 ${bi('以上为结合你的作答场景生成的示范，可参考结构与表达，不必逐字背诵。', 'A model answer tailored to your scenario — learn structure, not memorization.', 'Образец под вашу ситуацию — учите структуру, не зубрите.')}</p>
+        <button class="btn btn-accent copy-btn" style="margin-top:8px" data-copy-text="${result.highScoreAnswer.replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">📋 ${bi('复制高分示范', 'Copy model answer', 'Копировать')}</button>
+      </div>
+    </div>`;
+  document.getElementById('speakingResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================
+// Essay Analysis (preserved and enhanced with bilingual output)
+// ============================================================
+function analyzeEssay() {
+  const text = document.getElementById('essayInput').value.trim();
+  const topic = document.getElementById('essayTopic').value.trim();
+  const level = parseInt(document.getElementById('essayLevel').value);
+  if (!text) { showToast(t('toastNoText'), 'error'); return; }
+  showLoading(t('loadingEssay')); updateProgress(15);
+  setTimeout(() => {
+    try {
+      updateProgress(40);
+      const result = performEssayAnalysis(text, level, topic);
+      updateProgress(70);
+      currentEssayResult = result;
+      renderEssayResult(result);
+      updateProgress(100);
+      saveToHistory('essay', { text, topic, level, result });
+      showToast(t('toastEssayDone'), 'success');
+    } catch (err) {
+      console.error('[analyzeEssay]', err);
+      showToast('批改出错，请打开浏览器控制台查看详情', 'error');
+    } finally {
+      setTimeout(hideLoading, 300);
+    }
+  }, 800);
+}
+
+function performEssayAnalysis(text, level, topic) {
+  const chars = text.replace(/[，。！？、；：""''（）\s\n\r]/g, '');
+  const charCount = chars.length;
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
+  const sentences = text.split(/[。！？!?\n]+/).filter(s => s.trim().length > 0);
+  const required = 0;
+  const charSufficient = true;
+
+  const punctErrors = [];
+  if (text.includes('。。')) punctErrors.push({ original:'。。', suggestion:'。', desc:'连续句号', deduction:1 });
+  if (text.includes('，，')) punctErrors.push({ original:'，，', suggestion:'，', desc:'连续逗号', deduction:1 });
+  if (text.includes('！！')) punctErrors.push({ original:'！！', suggestion:'！', desc:'连续感叹号', deduction:1 });
+  if (/[，。！？、；：]["'"]/.test(text)) punctErrors.push({ original:'标点后跟引号', suggestion:'调整顺序，引号内加标点', desc:'引号与标点位置', deduction:1 });
+  if (/[a-zA-Z0-9][，。！？]/.test(text)) punctErrors.push({ original:'英文后跟中文标点', suggestion:'英文后应使用英文标点或空格', desc:'中英文标点混用', deduction:1 });
+  if (text.includes('。。。')) punctErrors.push({ original:'。。。', suggestion:'……', desc:'应使用省略号"……"', deduction:1 });
+
+  const charErrors = [];
+  if (/地地/.test(text)) charErrors.push({ original:'地地', suggestion:'第一个"地"可能是"的"', desc:'疑似"的/地"混用', deduction:2 });
+  if (/得得/.test(text)) charErrors.push({ original:'得得', suggestion:'第一个"得"可能是"的"或"地"', desc:'疑似"的/得"混用', deduction:2 });
+
+  const styleErrors = [];
+  if (/我.*我.*我.*我.*我.*我.*我.*我.*我/g.test(text)) {
+    styleErrors.push({ original:'主语"我"出现次数过多', suggestion:'适当省略主语或使用"笔者"、"本人认为"等表达', type:'style', deduction:2 });
+  }
+
+  const structIssues = [];
+  if (paragraphs.length < 3 && charCount > 200) structIssues.push(bi('段落数较少，建议分为开头、主体和结尾三段以上', 'Use intro, body, and conclusion paragraphs', 'Рекомендуется разделить на введение, основную часть и заключение'));
+  if (paragraphs.length === 1 && charCount > 100) structIssues.push(bi('文章只有一个段落，建议根据内容主题进行分段', 'Split into paragraphs by theme', 'Разделите текст на абзацы по темам'));
+
+  const connectives = ['首先','其次','最后','此外','另外','而且','但是','然而','因此','所以','因为','虽然','如果','总之','综上所述','一方面','另一方面'];
+  const foundConnectives = connectives.filter(c => text.includes(c));
+  if (foundConnectives.length < 2 && sentences.length > 5) {
+    styleErrors.push({ original:'缺少连接词', suggestion:`建议使用"${connectives.slice(0,5).join('、')}"等连接词，增强逻辑性`, type:'structure', deduction:2 });
+  }
+
+  let contentScore = 60;
+  contentScore += 15;
+  if (paragraphs.length >= 3) contentScore += 10;
+  if (foundConnectives.length >= 3) contentScore += 10;
+  if (topic && text.includes(topic.replace(/[谈谈对看法]/g,'').trim())) contentScore += 5;
+  contentScore = Math.max(20, Math.min(100, contentScore));
+
+  let languageScore = 65;
+  languageScore -= punctErrors.length * 5;
+  languageScore -= charErrors.length * 5;
+  languageScore -= styleErrors.length * 4;
+  if (sentences.length >= 5) languageScore += 10;
+  if (foundConnectives.length >= 4) languageScore += 5;
+  languageScore = Math.max(20, Math.min(100, languageScore));
+
+  let structureScore = 60;
+  if (paragraphs.length >= 3) structureScore += 20; else if (paragraphs.length >= 2) structureScore += 10;
+  if (foundConnectives.length >= 3) structureScore += 10;
+  structureScore += 10;
+  structureScore = Math.min(100, structureScore);
+
+  const overallScore = Math.round((contentScore + languageScore + structureScore) / 3);
+  const passed = overallScore >= 60;
+
+  let improvedText = text;
+  punctErrors.forEach(e => { improvedText = improvedText.replace(new RegExp(e.original.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), e.suggestion); });
+  charErrors.forEach(e => { improvedText = improvedText.replace(new RegExp(e.original.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), e.suggestion); });
+
+  const sentenceSuggestions = sentences.slice(0, 6).map((s, i) => {
+    const trimmed = s.trim(); if (!trimmed) return null;
+    const issues = [];
+    if (trimmed.length > 50) issues.push('句子偏长，可拆分');
+    if (trimmed.length < 5 && trimmed.length > 0) issues.push('句子偏短，可合并或扩展');
+    if (/我.*我.*我/g.test(trimmed)) issues.push('主语"我"重复');
+    if (issues.length === 0) return null;
+    return { index: i, original: trimmed, issues };
+  }).filter(Boolean);
+
+  return { charCount, required, charSufficient, paragraphs, sentences, punctErrors, charErrors, styleErrors, structIssues, foundConnectives, contentScore, languageScore, structureScore, overallScore, passed, improvedText, sentenceSuggestions, level };
+}
+
+function renderEssayResult(result) {
+  const container = document.getElementById('essayResult');
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="result-section">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value ${result.passed?'success':'danger'}">${result.overallScore}</div><div class="stat-label">${bi('综合评分 / 100', 'Overall / 100', 'Общий балл / 100')}</div></div>
+        <div class="stat-card"><div class="stat-value">${result.contentScore}</div><div class="stat-label">${bi('内容完整性', 'Content', 'Полнота содержания')}</div></div>
+        <div class="stat-card"><div class="stat-value">${result.languageScore}</div><div class="stat-label">${bi('语言表达', 'Language', 'Языковое выражение')}</div></div>
+        <div class="stat-card"><div class="stat-value">${result.structureScore}</div><div class="stat-label">${bi('结构逻辑', 'Structure', 'Структура и логика')}</div></div>
+        <div class="stat-card"><div class="stat-value accent">${result.charCount}</div><div class="stat-label">${bi('字数', 'Chars', 'Иероглифы')}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">📏 ${bi('评分维度详情', 'Детали оценки')}</div>
+        <div class="dimension-bar"><span class="dim-label">${bi('内容','Содерж.')}</span><div class="dim-track"><div class="dim-fill ${result.contentScore>=70?'high':(result.contentScore>=50?'medium':'low')}" style="width:${result.contentScore}%"></div></div><span class="dim-value">${result.contentScore}</span></div>
+        <div class="dimension-bar"><span class="dim-label">${bi('语言','Язык')}</span><div class="dim-track"><div class="dim-fill ${result.languageScore>=70?'high':(result.languageScore>=50?'medium':'low')}" style="width:${result.languageScore}%"></div></div><span class="dim-value">${result.languageScore}</span></div>
+        <div class="dimension-bar"><span class="dim-label">${bi('结构','Структ.')}</span><div class="dim-track"><div class="dim-fill ${result.structureScore>=70?'high':(result.structureScore>=50?'medium':'low')}" style="width:${result.structureScore}%"></div></div><span class="dim-value">${result.structureScore}</span></div>
+      </div>
+      ${(result.punctErrors.length+result.charErrors.length+result.styleErrors.length) > 0 ? `
+      <div class="card">
+        <div class="card-header">⚠️ ${bi(`发现的问题（共${result.punctErrors.length+result.charErrors.length+result.styleErrors.length}处）`, `Найдено ошибок: ${result.punctErrors.length+result.charErrors.length+result.styleErrors.length}`)}</div>
+        ${result.punctErrors.map(e => `<div class="sentence-item original"><div class="sentence-label error">${bi('标点错误','Пунктуация')}</div><div>📝 ${e.desc}：<code>${e.original}</code> → <code>${e.suggestion}</code></div></div>`).join('')}
+        ${result.charErrors.map(e => `<div class="sentence-item original"><div class="sentence-label error">${bi('用字错误','Ошибка иероглифа')}</div><div>📝 ${e.desc}：<code>${e.original}</code> → <code>${e.suggestion}</code></div></div>`).join('')}
+        ${result.styleErrors.map(e => `<div class="sentence-item original"><div class="sentence-label error">${e.type==='style'?bi('表达问题','Стиль'):bi('结构问题','Структура')}</div><div>📝 ${e.original}</div><div>💡 ${e.suggestion}</div></div>`).join('')}
+        ${result.structIssues.map(s => `<div class="sentence-item original"><div class="sentence-label error">${bi('结构建议','Structure tip','Совет')}</div><div>💡 ${s}</div></div>`).join('')}
+      </div>` : `<div class="card"><div class="card-header">✅ ${bi('未发现明显问题','Ошибок не обнаружено')}</div><p style="color:var(--text-mid);font-size:14px">${bi('文章基础表达规范，继续保持！','Текст написан грамотно, продолжайте!')}</p></div>`}
+      ${result.sentenceSuggestions.length > 0 ? `
+      <div class="card"><div class="card-header">🔍 ${bi('逐句修改建议','Построчные предложения')}</div>${result.sentenceSuggestions.map(s => `<div class="sentence-item original"><div class="sentence-label error">${bi(`第${s.index+1}句`,'')}</div><div style="margin-bottom:4px">📝 ${bi('原文：','Оригинал: ')}${s.original}</div><div>💡 ${s.issues.join('；')}</div></div>`).join('')}</div>` : ''}
+      <div class="card">
+        <div class="card-header">🌟 ${bi('全文优化版本','Оптимизированная версия')}</div>
+        <div class="result-block"><p style="line-height:2;font-size:14px;white-space:pre-wrap">${result.improvedText}</p></div>
+        <button class="btn btn-accent copy-btn" style="margin-top:8px" data-copy-text="${result.improvedText.replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">📋 ${bi('复制优化版本','Копировать')}</button>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:20px"><button class="btn btn-primary btn-lg" onclick="exportPDF('essayResult')">📄 ${bi('导出PDF报告','Экспорт PDF')}</button></div>
+    </div>`;
+  document.getElementById('essayResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================
+// Study Tips Module
+// ============================================================
+const tipsData = {
+  'hsk-listening': {
+    title: '🎧 HSK 听力技巧', titleRu: 'Советы по аудированию HSK',
+    tips: [
+      { zh: '预读选项，预测内容', ru: 'Заранее прочитайте варианты ответов и предугадайте содержание', detail: '在听力播放前快速浏览选项，圈出关键词，预测对话的主题和可能的问题方向。' },
+      { zh: '抓住关键词，不必听懂每个字', ru: 'Ловите ключевые слова, не обязательно понимать каждое слово', detail: '重点关注时间、地点、数字、人物关系等关键信息，忽略不重要的修饰词。' },
+      { zh: '注意转折词', ru: 'Обращайте внимание на противительные союзы', detail: '"但是"、"然而"、"不过"后面的内容往往是正确答案所在，前面的内容常是干扰项。' },
+      { zh: '做笔记速记', ru: 'Делайте быстрые заметки', detail: '用缩写或符号快速记录数字、地点等关键信息，听力结束后用于回忆答题。' },
+    ],
+    exercise: { q: '听力练习：请听以下短对话，选出正确答案。\n\n女：你今天怎么这么晚才来？\n男：路上堵车堵了半个小时，我七点就出门了。\n\n问：男的几点出门的？\nA. 六点半  B. 七点  C. 七点半  D. 八点', a: '正确答案：B. 七点\n\n解析：男的明确说"我七点就出门了"，所以答案选B。\n<span class="bi-ru">Правильный ответ: B. 7 часов. Мужчина сказал: "Я вышел в 7 часов".</span>' }
+  },
+  'hsk-reading': {
+    title: '📖 HSK 阅读技巧', titleRu: 'Советы по чтению HSK',
+    tips: [
+      { zh: '先看题目再读文章', ru: 'Сначала прочитайте вопросы, затем текст', detail: '带着问题去阅读，可以大大提高阅读效率，避免盲目通读。' },
+      { zh: '扫读找关键词定位', ru: 'Сканируйте текст для поиска ключевых слов', detail: '根据题目中的关键词在文章中快速定位，通常答案就在关键词附近的1-2句内。' },
+      { zh: '注意同义替换', ru: 'Обращайте внимание на синонимичные замены', detail: '正确答案往往使用与原文不同的表达方式（同义词、句式转换），要学会识别。' },
+      { zh: '排除干扰项', ru: 'Исключайте неправильные варианты', detail: '排除明显错误的选项（过于绝对、无中生有、张冠李戴），缩小选择范围。' },
+    ],
+    exercise: { q: '阅读练习：选出与划线短语意思最接近的选项。\n\n"我们应该用<b>长远的眼光</b>来看待这个问题。"\n\n"长远的眼光"是什么意思？\nA. 只看现在  B. 考虑未来  C. 回忆过去  D. 关注细节', a: '正确答案：B. 考虑未来\n\n解析："长远的眼光"意思是眼光放长远，不仅看眼前，更要考虑未来的发展。\n<span class="bi-ru">"长远的眼光" означает смотреть в будущее. Правильный ответ: B.</span>' }
+  },
+  'hsk-writing': {
+    title: '✍️ HSK 写作技巧', titleRu: 'Советы по письму HSK',
+    tips: [
+      { zh: '三段式结构最稳妥', ru: 'Структура из трёх частей самая надёжная', detail: '开头引入话题 → 主体论述观点（2-3个论点+例子）→ 结尾总结升华。' },
+      { zh: '适当使用连接词', ru: 'Используйте союзы и связки', detail: '"首先...其次...最后"、"一方面...另一方面"、"总之"等，让文章逻辑清晰。' },
+      { zh: '注意"的、地、得"的正确使用', ru: 'Правильно используйте 的/地/得', detail: '的+名词、地+动词、得+补语。这是HSK写作的常见扣分点。' },
+      { zh: '留出时间检查', ru: 'Оставьте время на проверку', detail: '写完后用2-3分钟检查错别字、标点和语法，往往能挽回3-5分。' },
+    ],
+    exercise: { q: '写作练习：请改正下面句子中的错误。\n\n"他高兴的说：\'我跑的快！\'"\n\n这句话中有几处错误？请写出改正后的句子。', a: '改正后：他高兴地说："我跑得快！"\n\n错误1："高兴的"应为"高兴地"（修饰动词"说"）\n错误2："跑的"应为"跑得"（补语说明程度）\n错误3：引号应使用中文引号""\n<span class="bi-ru">3 ошибки исправлены: 的→地, 的→得, кавычки</span>' }
+  },
+  'hskk-pronunciation': {
+    title: '🗣 HSKK 口语发音技巧', titleRu: 'Советы по произношению HSKK',
+    tips: [
+      { zh: '声调是核心', ru: 'Тоны — это основа', detail: '普通话四个声调必须准确。特别是一声(55)和四声(51)的区别，建议用录音对比练习。' },
+      { zh: '注意轻声和儿化', ru: 'Обратите внимание на лёгкий тон и эризацию', detail: 'HSKK考试中自然的轻声和儿化会让发音更地道，但不要过度使用。' },
+      { zh: '跟读模仿标准录音', ru: 'Имитируйте стандартные аудиозаписи', detail: '每天跟读HSK官方听力材料15分钟，注意模仿语音语调、停顿和重音。' },
+      { zh: '录音自我检查', ru: 'Записывайте себя и проверяйте', detail: '把自己的回答录下来，回听时找出问题，重点纠正习惯性错误发音。' },
+    ],
+    exercise: { q: '发音练习：请标出下面词语的正确声调。\n\n认识 (renshi)  朋友 (pengyou)  电脑 (diannao)  中国 (zhongguo)', a: '正确答案：\nrènshi (认识) — 4声+轻声\npéngyou (朋友) — 2声+轻声\ndiànnǎo (电脑) — 4声+3声\nZhōngguó (中国) — 1声+2声\n<span class="bi-ru">Правильные тоны указаны выше</span>' }
+  },
+  'hskk-fluency': {
+    title: '💨 HSKK 流利度技巧', titleRu: 'Советы по беглости речи HSKK',
+    tips: [
+      { zh: '填充词要自然', ru: 'Используйте естественные заполнители пауз', detail: '用"嗯..."、"就是说..."、"那个..."等填充词争取思考时间，但不要过度使用。' },
+      { zh: '控制语速', ru: 'Контролируйте темп речи', detail: '不要为了显得流利而说得太快，中等偏慢的语速加上清晰的发音更受欢迎。' },
+      { zh: '善用重复和改述', ru: 'Используйте повтор и перефразирование', detail: '如果中途卡住了，可以用"换句话说..."、"也就是说..."重新组织语言，这也显示语言能力。' },
+      { zh: '准备万能句式', ru: 'Подготовьте универсальные фразы', detail: '准备几个可以用于各种话题的句式模板，如"从我的角度来看..."、"总的来说..."。' },
+    ],
+    exercise: { q: '流利度练习：请在30秒内口头回答以下问题，注意使用连接词。\n\n"你认为学习外语最重要的是什么？为什么？"', a: '参考回答：\n我认为学习外语最重要的是坚持。因为学习语言是一个长期的过程，不可能一蹴而就。比如说，每天坚持背10个单词，一年就能掌握3000多个词汇。此外，多说多练也很关键。总之，只要坚持练习，就一定能取得进步。\n<span class="bi-ru">Пример ответа с использованием связок и аргументов</span>' }
+  },
+  'hskk-content': {
+    title: '📝 HSKK 内容组织技巧', titleRu: 'Советы по организации содержания HSKK',
+    tips: [
+      { zh: '总分总结构', ru: 'Структура: общее-частное-общее', detail: '先总述观点→分2-3个方面展开（每个方面+例子）→最后总结。这是最容易得分的结构。' },
+      { zh: '用具体例子支撑观点', ru: 'Подкрепляйте мнение конкретными примерами', detail: '每个论点后面加一个具体例子，比如个人经历、社会现象等，让回答更有说服力。' },
+      { zh: '展示批判性思维', ru: 'Демонстрируйте критическое мышление', detail: '可以说"从另一个角度来看..."、"虽然A有道理，但B也值得考虑..."，显示思维的全面性。' },
+      { zh: '注意时间分配', ru: 'Распределяйте время', detail: 'HSKK回答时间通常为1-2分钟。开头10秒、主体60秒、结尾10秒是最优时间分配。' },
+    ],
+    exercise: { q: '内容组织练习：请为以下话题设计一个回答提纲（写出3个论点和对应的例子）。\n\n话题："科技改变了我们的生活方式"', a: '参考提纲：\n1. 通讯方式 — 以前写信，现在微信视频通话即时联系\n2. 购物方式 — 以前去商店，现在网购、外卖、移动支付\n3. 学习方式 — 以前只能去教室，现在可以在线学习、看视频课程\n结尾：科技带来便利，但也需要注意合理使用\n<span class="bi-ru">План ответа с тремя аргументами и примерами</span>' }
+  }
+};
+
+function renderTips(tipKey) {
+  const container = document.getElementById('tipsContent');
+  const data = tipsData[tipKey];
+  if (!data) return;
+  document.querySelectorAll('.tips-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-tip="${tipKey}"]`).classList.add('active');
+
+  container.innerHTML = `
+    <h3 style="margin-bottom:12px">${data.title}<br><span class="bi-ru">${data.titleRu}</span></h3>
+    ${data.tips.map((t, i) => `
+      <div class="tips-card">
+        <h4>${i+1}. ${t.zh}<br><span class="bi-ru">${t.ru}</span></h4>
+        <p>${t.detail}</p>
+      </div>
+    `).join('')}
+    <div class="exercise-box">
+      <div class="question"><strong>${bi('小练习', 'Упражнение')}</strong><br><span style="white-space:pre-wrap">${data.exercise.q}</span></div>
+      <button class="btn btn-accent btn-sm" onclick="toggleAnswer(this)" data-answer="${data.exercise.a.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}">${t('practiceBtn')}</button>
+      <div class="answer" style="white-space:pre-wrap">${data.exercise.a}</div>
+    </div>
+  `;
+}
+
+function toggleAnswer(btn) {
+  const answerDiv = btn.nextElementSibling;
+  if (answerDiv.style.display === 'block') {
+    answerDiv.style.display = 'none';
+    btn.textContent = t('practiceBtn');
+  } else {
+    answerDiv.style.display = 'block';
+    btn.textContent = t('hideAnswer');
+  }
+}
+
+// Initialize tips tabs
+document.addEventListener('click', function(e) {
+  const tab = e.target.closest('.tips-tab');
+  if (tab) { renderTips(tab.getAttribute('data-tip')); }
+});
+
+// ============================================================
+// Copy Utility
+// ============================================================
+document.addEventListener('click', function(e) {
+  const copyBtn = e.target.closest('.copy-btn');
+  if (copyBtn) {
+    const text = copyBtn.getAttribute('data-copy-text') || '';
+    const decoded = text.replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(decoded).then(() => showToast(t('toastCopied'), 'success')).catch(() => fallbackCopy(decoded));
+    } else { fallbackCopy(decoded); }
+  }
+});
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea'); ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); showToast(t('toastCopied'), 'success'); }
+  catch(e) { showToast(t('toastCopyFail'), 'error'); }
+  document.body.removeChild(ta);
+}
+
+// ============================================================
+// Clear Functions
+// ============================================================
+function clearScorePanel() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('studentName').value = '';
+  document.getElementById('totalScore').textContent = '--';
+  document.getElementById('listeningScore').textContent = '--';
+  document.getElementById('readingScore').textContent = '--';
+  document.getElementById('writingScore').textContent = '--';
+  document.getElementById('passStatus').textContent = '--';
+  document.getElementById('passStatus').className = 'stat-value';
+  document.getElementById('weaknessCard').style.display = 'none';
+  document.getElementById('suggestionCard').style.display = 'none';
+  disposeAllCharts();
+  currentScoreData = null;
+  showToast(t('toastClearDone'), 'info');
+}
+function clearSpeakingPanel() {
+  document.getElementById('speakingInput').value = '';
+  document.getElementById('speakingTopic').value = '';
+  document.getElementById('speakingResult').style.display = 'none';
+  document.getElementById('speakingResult').innerHTML = '';
+  removeImage('speakingImgInput','speakingImgPreview','speakingImgRemove');
+  currentSpeakingResult = null;
+  showToast(t('toastClearDone'), 'info');
+}
+function clearEssayPanel() {
+  document.getElementById('essayInput').value = '';
+  document.getElementById('essayTopic').value = '';
+  document.getElementById('essayResult').style.display = 'none';
+  document.getElementById('essayResult').innerHTML = '';
+  removeImage('essayImgInput','essayImgPreview','essayImgRemove');
+  currentEssayResult = null;
+  showToast(t('toastClearDone'), 'info');
+}
+
+// ============================================================
+// Modal
+// ============================================================
+function showStandardsModal() { document.getElementById('standardsModal').classList.remove('hidden'); }
+function closeStandardsModal() { document.getElementById('standardsModal').classList.add('hidden'); }
+document.getElementById('standardsModal').addEventListener('click', function(e) { if (e.target === this) closeStandardsModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeStandardsModal(); });
+
+// ============================================================
+// PDF Export
+// ============================================================
+async function exportPDF(sourceId) {
+  showLoading(t('loadingPDF')); updateProgress(30);
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p','mm','a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let sourceEl;
+    if (sourceId === 'score-panel') sourceEl = document.getElementById('score-panel');
+    else if (sourceId === 'essayResult') sourceEl = document.getElementById('essayResult');
+    else sourceEl = document.getElementById(sourceId);
+    updateProgress(60);
+    if (sourceEl && typeof html2canvas !== 'undefined') {
+      const canvas = await html2canvas(sourceEl, { scale:2, useCORS:true, backgroundColor:'#FFFFFF', logging:false });
+      updateProgress(85);
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight, position = 10;
+      doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - 20);
+      while (heightLeft > 0) {
+        position = -(pageHeight - 20 - (imgHeight - heightLeft));
+        doc.addPage(); doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - 20);
+      }
+    } else {
+      doc.setFontSize(16); doc.text('HSK Analysis Report', 10, 20);
+      doc.setFontSize(12);
+      doc.text('Generated: ' + new Date().toLocaleString(), 10, 30);
+    }
+    updateProgress(95);
+    doc.save('HSK_Analysis_' + new Date().toISOString().slice(0,10) + '.pdf');
+    updateProgress(100); setTimeout(hideLoading, 300);
+    showToast(t('toastCopied').replace('已复制','PDF已下载'), 'success');
+  } catch(err) {
+    hideLoading(); showToast(t('toastPDFFail'), 'error'); console.error(err);
+  }
+}
+
+// ============================================================
+// History Management
+// ============================================================
+function saveToHistory(type, data) {
+  try {
+    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    history.push({ id: Date.now(), type, timestamp: new Date().toISOString(), data });
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-50)));
+  } catch(e) { console.error('Failed to save history:', e); }
+}
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function renderHistory() {
+  const history = getHistory();
+  const container = document.getElementById('historyContent');
+  const actionsEl = document.getElementById('historyActions');
+  const version = history.length + '_' + (history[0]?.id || 0);
+  if (container._version === version) return;
+  container._version = version;
+  if (history.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>${t('noHistory')}</p><p style="font-size:12px;color:var(--text-light)">${t('autoSave')}</p></div>`;
+    actionsEl.hidden = true; return;
+  }
+  actionsEl.hidden = false;
+  const reversed = history.slice().reverse();
+  const typeLabels = { score: '📊 '+t('navScore'), speaking: '🎤 '+t('navSpeaking'), essay: '✏️ '+t('navEssay') };
+  container.innerHTML = reversed.map(item => {
+    const date = new Date(item.timestamp).toLocaleString('zh-CN');
+    let summary = '';
+    if (item.type === 'score') summary = `HSK ${item.data.level}级 · ${bi('总分','')}${item.data.scores[item.data.scores.length-1]?.total||'--'}${bi('分','')}`;
+    else if (item.type === 'speaking') summary = `${item.data.level==='beginner'?'初级':(item.data.level==='intermediate'?'中级':'高级')} · ${bi('综合','')}${item.data.result?.overallScore||'--'}${bi('分','')}`;
+    else if (item.type === 'essay') summary = `HSK ${item.data.level}级 · ${item.data.result?.charCount||'--'}${bi('字','')} · ${item.data.result?.overallScore||'--'}${bi('分','')}`;
+    return `<div class="history-item"><div class="history-info"><div class="history-title">${typeLabels[item.type]||item.type} — ${summary}</div><div class="history-time">${date}</div></div><div class="history-actions"><button class="btn btn-outline btn-sm" onclick="loadHistoryItem(${item.id})">${bi('查看','Смотреть')}</button><button class="btn btn-ghost btn-sm" onclick="deleteHistoryItem(${item.id})">${bi('删除','Удалить')}</button></div></div>`;
+  }).join('');
+}
+function loadHistoryItem(id) {
+  const history = getHistory();
+  const item = history.find(h => h.id === id);
+  if (!item) { showToast('记录未找到', 'error'); return; }
+  if (item.type === 'score') {
+    switchPanel('score-panel', document.querySelector('[data-panel="score-panel"]'));
+    document.getElementById('hskLevel').value = item.data.level;
+    disposeAllCharts();
+    currentScoreData = { scores: item.data.scores, latest: item.data.scores[item.data.scores.length-1], level: item.data.level, passLine: item.data.level<=2?120:180, maxScore: item.data.level<=2?200:300 };
+    renderScoreAnalysis();
+  } else if (item.type === 'speaking') {
+    switchPanel('speaking-panel', document.querySelector('[data-panel="speaking-panel"]'));
+    document.getElementById('speakingTopic').value = item.data.topic||'';
+    document.getElementById('speakingInput').value = item.data.text||'';
+    document.getElementById('speakingLevel').value = item.data.level;
+    currentSpeakingResult = item.data.result;
+    renderSpeakingResult(item.data.result);
+  } else if (item.type === 'essay') {
+    switchPanel('essay-panel', document.querySelector('[data-panel="essay-panel"]'));
+    document.getElementById('essayTopic').value = item.data.topic||'';
+    document.getElementById('essayInput').value = item.data.text||'';
+    document.getElementById('essayLevel').value = item.data.level;
+    currentEssayResult = item.data.result;
+    renderEssayResult(item.data.result);
+  }
+  showToast(t('toastHistoryLoad'), 'info');
+}
+function deleteHistoryItem(id) {
+  const history = getHistory();
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.filter(h => h.id !== id)));
+  renderHistory(); showToast(t('toastHistoryDelete'), 'info');
+}
+function clearAllHistory() {
+  if (confirm(t('confirmClearHistory'))) {
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistory(); showToast(t('toastHistoryClear'), 'info');
+  }
+}
+
+// ============================================================
+// File Input Handler
+// ============================================================
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  if (this.files[0]) handleFileUpload(this.files[0]);
+});
+
+// ============================================================
+// Utilities
+// ============================================================
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+// ============================================================
+// Resize Handler for Charts (debounced)
+// ============================================================
+window.addEventListener('resize', debounce(() => {
+  Object.values(charts).forEach(c => { if (c) { try { c.resize(); } catch(e) {} } });
+}, 200));
+
+// ============================================================
+// Initialize
+// ============================================================
+function updateScoreStandards() {
+  const level = parseInt(document.getElementById('hskLevel').value);
+  const key = level <= 2 ? 'scoreStandardsL12' : 'scoreStandardsL36';
+  const info = t(key).replace('{level}', level);
+  document.getElementById('uploadArea').querySelector('.upload-hint').textContent = '.xlsx, .xls, .csv | ' + info;
+}
+
+// ============================================================
+// AutoGrader — 汉语作业自动批改模块
+// ============================================================
+const AutoGrader = (function() {
+  // ==================== 引擎：错别字知识库 ====================
+  const TYPO_RULES = [
+    { id:'typo_zai_zai', pattern:/在来|在一次|在见|再说?一次|在一遍/g, wrong:'在', correct:'再',
+      descriptionZh:'"在"表示方位或正在进行，"再"表示重复或"然后"。此处应使用"再"。',
+      descriptionRu:'"在" означает местоположение или процесс, "再" означает повторение. Здесь нужно "再".' },
+    { id:'typo_zuo_zuo', pattern:/作(饭|菜|事|梦|生意|衣服|作业(?!本))/g, wrong:'作', correct:'做',
+      descriptionZh:'"作"多用于抽象/书面语（作文、作为），"做"用于具体动作（做饭、做事）。',
+      descriptionRu:'"作" используется для абстрактных понятий, "做" — для конкретных действий.' },
+    { id:'typo_xiang_xiang', pattern:/好象/g, wrong:'象', correct:'像',
+      descriptionZh:'"好象"应为"好像"，"像"表示相似、比如。',
+      descriptionRu:'"好象" должно быть "好像". "像" означает "похоже".' },
+    { id:'typo_yi_yi', pattern:/己经/g, wrong:'己', correct:'已',
+      descriptionZh:'"己经"应为"已经"。"己"是自己，"已"是已经。',
+      descriptionRu:'"己经" должно быть "已经". "己" = сам, "已" = уже.' },
+    { id:'typo_yi_yi2', pattern:/以经/g, wrong:'以', correct:'已',
+      descriptionZh:'"以经"应为"已经"。"以"是用/凭借，"已"是已经。',
+      descriptionRu:'"以经" должно быть "已经".' },
+    { id:'typo_hou_hou', pattern:/时侯/g, wrong:'侯', correct:'候',
+      descriptionZh:'"时侯"应为"时候"。"侯"是姓氏，"候"用于时间。',
+      descriptionRu:'"时侯" должно быть "时候".' },
+    { id:'typo_na_na', pattern:/(?:去|在|到)那(?:里|儿|边)?(?!个|些|么|样)/g, wrong:'那', correct:'哪',
+      descriptionZh:'疑问句中"那"应为"哪"。',
+      descriptionRu:'В вопросительных предложениях "那" должно быть "哪".' },
+    { id:'typo_lan_lan', pattern:/兰(?:色|天|球)/g, wrong:'兰', correct:'蓝',
+      descriptionZh:'"兰"是兰花/植物，"蓝"才是颜色。',
+      descriptionRu:'"兰" — орхидея, "蓝" — синий цвет.' },
+    { id:'typo_lan_lan2', pattern:/蓝(?:球)/g, wrong:'蓝', correct:'篮',
+      descriptionZh:'"蓝"是颜色，"篮"是篮子/篮球。',
+      descriptionRu:'"蓝" — цвет, "篮" — корзина/баскетбол.' },
+    { id:'typo_wei_mo', pattern:/未尾|周未|期未|月未/g, wrong:'未', correct:'末',
+      descriptionZh:'"未"表示否定/还没，"末"表示末尾/结束。',
+      descriptionRu:'"未" = ещё не, "末" = конец.' },
+    { id:'typo_ru_ren', pattern:/进人|收人|输人|投人/g, wrong:'人', correct:'入',
+      descriptionZh:'"人"是human，"入"是enter/input。',
+      descriptionRu:'"人" = человек, "入" = входить.' },
+    { id:'typo_ba_bo', pattern:/拔(?:电话|号码|号|弄|款)/g, wrong:'拔', correct:'拨',
+      descriptionZh:'"拔"是拔起/抽出，"拨"是拨动/拨打。',
+      descriptionRu:'"拔" = вытаскивать, "拨" = набирать (номер).' },
+  ];
+
+  // ==================== 引擎：语法检测规则 ====================
+  const GRAMMAR_RULES = [
+    { id:'grammar_de_de_de', type:'particle',
+      check(text) {
+        const results = [];
+        const dePattern = /([一-鿿]{1,3})的(很|非常|十分|特别|不|太|极|好|快|慢|多|少|早|晚|清楚|明白|漂亮|干净|整齐|认真|仔细|高兴|开心|难过|严重|厉害|糟糕)/g;
+        let m;
+        while ((m = dePattern.exec(text)) !== null) {
+          results.push({ position:m.index+m[1].length, length:1, context:m[0], wrong:'的', correct:'得',
+            descriptionZh:`"${m[0]}"中"的"应为"得"。动词/形容词后接程度补语用"得"。`,
+            descriptionRu:`"的" должно быть "得" после глагола/прилагательного с дополнением степени.`,
+            suggestion:m[0].replace('的','得'), type:'particle' });
+        }
+        const diPattern = /([一-鿿]{1,3})的([一-鿿]{1,4}(?:着|了|过|到|起|来|去|完|好|住|掉|走|跑|飞|说|写|看|听|想|做|干|学|教|吃|喝|玩|用|拿|放|给|送|买|卖|开|关|进|出|上|下|回|过|起|到))/g;
+        let dm;
+        const adjEndings = ['真','切','极','力','格','确','全','善','美','好','坏','大','小','快','慢','高','低','深','浅','长','短','远','近','多','少','轻','重','严','松','紧','密','疏','勤','懒','难','易','热','冷','明','暗','强','弱','新','旧'];
+        const singleAdj = ['好','快','慢','多','少','早','晚','高','低','长','短','大','小','新','旧','轻','重','难','易','深','浅','远','近','热','冷','勤','懒'];
+        while ((dm = diPattern.exec(text)) !== null) {
+          const wb = dm[1];
+          if (adjEndings.some(e => wb.endsWith(e)) || singleAdj.includes(wb)) {
+            results.push({ position:dm.index+dm[1].length, length:1, context:dm[0], wrong:'的', correct:'地',
+              descriptionZh:`"${dm[0]}"中"的"应为"地"。形容词修饰动词时用"地"。`,
+              descriptionRu:`"的" должно быть "地" когда прилагательное определяет глагол.`,
+              suggestion:dm[0].replace('的','地'), type:'particle' });
+          }
+        }
+        return results;
+      }
+    },
+    { id:'grammar_double_le', type:'redundant',
+      check(text) {
+        const results = [];
+        const clauses = text.split(/[，,。！!？?；;、\n]/);
+        let offset = 0;
+        for (const clause of clauses) {
+          const leCount = (clause.match(/了/g) || []).length;
+          if (leCount >= 2) {
+            const idx = text.indexOf(clause, offset);
+            results.push({ position:idx, length:clause.length, context:clause,
+              descriptionZh:`此分句中有 ${leCount} 个"了"，可能冗余。一个分句通常只需要一个"了"。`,
+              descriptionRu:`${leCount} "了" в одной clause — возможно избыточно.`,
+              suggestion:'建议保留一个"了"，删除多余的。', type:'redundant' });
+          }
+          offset += clause.length + 1;
+        }
+        return results;
+      }
+    },
+    { id:'grammar_ba_structure', type:'wordOrder',
+      check(text) {
+        const results = [];
+        const baPattern = /把([一-鿿]{1,6})(?:给|都|也)?(?:了|着|过)?(?=[，,。！!？?；;、\n])/g;
+        let m;
+        while ((m = baPattern.exec(text)) !== null) {
+          results.push({ position:m.index, length:m[0].length, context:m[0],
+            descriptionZh:'"把"字句不完整，缺少谓语动词。"把+宾语+动词"才是完整结构。',
+            descriptionRu:'Конструкция с "把" не завершена — не хватает глагола.',
+            suggestion:'请在"把'+m[1]+'"后面补充动词。', type:'wordOrder' });
+        }
+        return results;
+      }
+    },
+    { id:'grammar_collocation', type:'collocation',
+      check(text) {
+        const results = [];
+        const patterns = [
+          { pattern:/解决(?:了?)(?:困难)/g, descriptionZh:'"解决困难"搭配不当，通常说"克服困难"或"解决问题"。', descriptionRu:'"解决困难" — неправильное сочетание. Правильно: "克服困难" или "解决问题".', suggestion:'将"解决困难"改为"克服困难"或"解决问题"。' },
+          { pattern:/增加(?:了?)(?:水平|能力)/g, descriptionZh:'"增加水平/能力"搭配不当，通常说"提高水平/能力"。', descriptionRu:'"增加水平" — неправильно. Правильно: "提高水平".', suggestion:'将"增加"改为"提高"。' },
+          { pattern:/到达(?:了?)(?:目标|目的|成功)/g, descriptionZh:'"到达目标"搭配不当，通常说"达到目标"或"实现目标"。', descriptionRu:'"到达目标" — неправильно. "到达" для мест, "达到" — для целей.', suggestion:'将"到达"改为"达到"。' },
+          { pattern:/采取(?:了?)(?:方法|方式|办法)/g, descriptionZh:'"采取方法"搭配不当，通常说"采取措施"或"采用方法"。', descriptionRu:'"采取方法" — неправильно. Правильно: "采取措施" или "采用方法".', suggestion:'将"采取"改为"采用"。' },
+          { pattern:/引起(?:了?)(?:进步|发展|提高)/g, descriptionZh:'"引起进步"搭配不当。"引起"多用于负面结果。', descriptionRu:'"引起进步" — "引起" обычно с негативными последствиями.', suggestion:'将"引起"改为"促进"或"推动"。' },
+        ];
+        for (const rule of patterns) {
+          rule.pattern.lastIndex = 0;
+          let m;
+          while ((m = rule.pattern.exec(text)) !== null) {
+            results.push({ position:m.index, length:m[0].length, context:m[0],
+              descriptionZh:rule.descriptionZh, descriptionRu:rule.descriptionRu,
+              suggestion:rule.suggestion, type:'collocation' });
+          }
+        }
+        return results;
+      }
+    },
+  ];
+
+  // ==================== 引擎：词汇库 ====================
+  const COMMON_WORDS = new Set([
+    '的','了','在','是','我','有','和','就','不','人','都','一','一个','他','她','它','们','这','那','也','要','会','可','以','能','说','看','想','做','来','去','上','下','中','大','小','好','很','吗','呢','吧','啊','哦','嗯','呀','嘛','还','没','只','对','从','到','把','被','让','给','为','因为','所以','但是','而且','虽然','如果',
+    '我们','他们','她们','你们','自己','什么','怎么','为什么','怎么样','可以','可能','应该','必须','需要','能够','已经','没有','不是','这个','那个','哪个','这些','那些','这里','那里','哪里','这么','时候','地方','东西','事情','问题','方法','方式','感觉','觉得','知道','认识','了解','理解','喜欢','希望','愿意','决定','开始','工作','学习','生活','学生','老师','学校','朋友','家庭','社会','中国','汉语','中文','文化','历史','发展','经济','教育','科技','时间','今天','明天','昨天','现在','以前','以后','每天','经常','非常','特别','比较','一定','当然','确实','终于','忽然','慢慢','好好','认真','努力','坚持','进步','成功','帮助','改变','提高','越来越','一下','一点','很多','很少','不少','大多数','一部分',
+  ]);
+
+  const SCORING_CONFIG = { baseScore:100, minScore:20, typoPenalty:2, grammarPenalty:3, highRichnessBonus:3, lowRichnessPenalty:5, superLowRichnessPenalty:8 };
+  const DEMO_TEXT = '昨天我去商店买了三个苹果和两本书。在回家的路上，我遇到了我的好朋友小王。我们己经很长时间没有见面了，所以我们都非赏高兴。他告许我他最近在努力学习汉语，因为他觉得汉语很重要。我觉的他的想法很对。学习语言需要每天坚持，不能放松。我也要更加认真对待汉语学习，争取以后能流利地用汉语交流。';
+
+  const HISTORY_KEY = 'hsk_auto_grading_history';
+  const MAX_HISTORY = 50;
+  const MAX_IMAGES = 5;
+  const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+
+  // ==================== State ====================
+  let currentResult = null;
+  let uploadedImages = []; // [{base64, name, size}]
+
+  // ==================== Helpers ====================
+  function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function getScoreColor(score) {
+    if (score >= 90) return 'text-green-600';
+    if (score >= 80) return 'text-blue-600';
+    if (score >= 70) return 'text-yellow-600';
+    if (score >= 60) return 'text-orange-600';
+    return 'text-red-600';
+  }
+
+  function getScoreBgColor(score) {
+    if (score >= 90) return 'score-green';
+    if (score >= 80) return 'score-blue';
+    if (score >= 70) return 'score-yellow';
+    if (score >= 60) return 'score-orange';
+    return 'score-red';
+  }
+
+  function getGradeBgColor(grade) {
+    const map = { A:'bg-green-500', B:'bg-blue-500', C:'bg-yellow-500', D:'bg-orange-500', F:'bg-red-500' };
+    return map[grade] || 'bg-gray-500';
+  }
+
+  function getRichnessColor(level) {
+    const map = { high:'text-green-600', medium:'text-yellow-600', low:'text-red-500' };
+    return map[level] || 'text-gray-600';
+  }
+
+  function scoreToGrade(score) {
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    if (score >= 60) return 'D';
+    return 'F';
+  }
+
+  // ==================== 引擎：分词与词汇分析 ====================
+  function simpleSegment(text) {
+    const words = [];
+    let i = 0;
+    const maxLen = 4;
+    while (i < text.length) {
+      if (/[，,。！!？?；;、：:""''（）()【】\[\]\s\n\r\t\d\w]/.test(text[i])) { words.push(text[i]); i++; continue; }
+      let matched = false;
+      for (let len = Math.min(maxLen, text.length - i); len >= 2; len--) {
+        const candidate = text.substring(i, i + len);
+        if (COMMON_WORDS.has(candidate)) { words.push(candidate); i += len; matched = true; break; }
+      }
+      if (!matched) { words.push(text[i]); i++; }
+    }
+    return words;
+  }
+
+  function analyzeVocabulary(text) {
+    const chars = text.replace(/[\s\d\w，,。！!？?；;、：:""''（）()【】\[\]\n\r\t]/g, '');
+    const totalChars = chars.length;
+    const uniqueChars = new Set(chars).size;
+    const charRichness = totalChars > 0 ? uniqueChars / totalChars : 0;
+    const words = simpleSegment(text);
+    const contentWords = words.filter(w => w.length >= 2 && !/[，,。！!？?；;、：:""''（）()【】\[\]\s\n\r\t\d\w]/.test(w));
+    const wordFreq = {};
+    for (const w of contentWords) { wordFreq[w] = (wordFreq[w] || 0) + 1; }
+    const repeatedWords = [];
+    for (const [word, count] of Object.entries(wordFreq)) {
+      if (count >= 2) {
+        const positions = [];
+        let pos = text.indexOf(word);
+        while (pos !== -1) { positions.push(pos); pos = text.indexOf(word, pos + 1); }
+        repeatedWords.push({ word, count, positions });
+      }
+    }
+    repeatedWords.sort((a, b) => b.count - a.count);
+    const uniqueContentWords = new Set(contentWords).size;
+    const wordRichness = contentWords.length > 0 ? uniqueContentWords / contentWords.length : 0;
+    let richnessLevel;
+    if (wordRichness >= 0.7) richnessLevel = 'high';
+    else if (wordRichness >= 0.4) richnessLevel = 'medium';
+    else richnessLevel = 'low';
+    return { totalChars, uniqueChars, charRichness, totalContentWords: contentWords.length, uniqueContentWords, wordRichness, richnessLevel, repeatedWords, wordFreq };
+  }
+
+  // ==================== 引擎：评分与评语 ====================
+  function calculateScore(typoCount, grammarCount, richnessLevel) {
+    let score = SCORING_CONFIG.baseScore;
+    score -= typoCount * SCORING_CONFIG.typoPenalty;
+    score -= grammarCount * SCORING_CONFIG.grammarPenalty;
+    if (richnessLevel === 'high') score += SCORING_CONFIG.highRichnessBonus;
+    else if (richnessLevel === 'low') score -= SCORING_CONFIG.lowRichnessPenalty;
+    return Math.max(SCORING_CONFIG.minScore, Math.min(100, score));
+  }
+
+  function generateCommentZh(score, grade, typoCount, grammarCount, richnessLevel) {
+    if (grade === 'A') return '非常出色！你的汉语表达流畅自然，几乎没有明显错误。';
+    if (grade === 'B') return `表现不错！${typoCount > 0 ? '注意检查'+typoCount+'处疑似错别字。' : ''}${grammarCount > 0 ? '有'+grammarCount+'处语法可以改进。' : ''}`;
+    if (grade === 'C') return '还可以更好。建议多注意用字准确性和语法规范。' + (richnessLevel === 'low' ? '可以尝试使用更多样化的词汇。' : '');
+    if (grade === 'D') return '需要加强基础。建议从用字准确、语法规范、词汇丰富度方面改进。多读多写，注意积累常用词汇和句型。';
+    return '这篇作业需要重新认真对待。建议先检查基本用字，再逐步提高语法和表达能力。坚持下去！';
+  }
+
+  function generateCommentRu(score, grade, typoCount, grammarCount, richnessLevel) {
+    if (grade === 'A') return 'Отличная работа! Ваше выражение на китайском языке плавное и естественное, почти без ошибок.';
+    if (grade === 'B') return `Хорошая работа! ${typoCount > 0 ? 'Проверьте '+typoCount+' возможных опечаток.' : ''} ${grammarCount > 0 ? 'Есть '+grammarCount+' грамматических момента для улучшения.' : ''}`;
+    if (grade === 'C') return 'Может быть лучше. Рекомендуется обратить внимание на точность иероглифов и грамматику.' + (richnessLevel === 'low' ? ' Используйте более разнообразную лексику.' : '');
+    if (grade === 'D') return 'Требуется укрепить основы. Рекомендуется улучшить: точность иероглифов, грамматику, разнообразие лексики.';
+    return 'Эту работу нужно переделать. Начните с проверки базовых иероглифов, затем улучшайте грамматику. Продолжайте!';
+  }
+
+  // ==================== 引擎：主分析函数 ====================
+  function analyzeText(text) {
+    const trimmed = text.trim();
+    // 错别字检测
+    const typos = [];
+    for (const rule of TYPO_RULES) {
+      rule.pattern.lastIndex = 0;
+      let m;
+      while ((m = rule.pattern.exec(trimmed)) !== null) {
+        const alreadyReported = typos.some(t => t.position === m.index && t.correct === rule.correct);
+        if (!alreadyReported) {
+          typos.push({ position:m.index, length:m[0].length, wrong:m[0], correct:rule.correct, context:m[0],
+            descriptionZh:rule.descriptionZh, descriptionRu:rule.descriptionRu, type:'typo', ruleId:rule.id });
+        }
+      }
+    }
+    typos.sort((a, b) => a.position - b.position);
+    // 语法错误检测
+    const allGrammarErrors = [];
+    for (const rule of GRAMMAR_RULES) {
+      const errors = rule.check(trimmed);
+      for (const err of errors) { err.ruleId = rule.id; allGrammarErrors.push(err); }
+    }
+    allGrammarErrors.sort((a, b) => a.position - b.position);
+    // 词汇分析
+    const vocabulary = analyzeVocabulary(trimmed);
+    const repeatIssues = vocabulary.repeatedWords.slice(0, 10).map(rw => ({
+      position: rw.positions[0], length: rw.word.length, context: rw.word, count: rw.count, positions: rw.positions,
+      descriptionZh: `"${rw.word}"重复出现 ${rw.count} 次，建议使用同义词替换部分出现。`,
+      descriptionRu: `"${rw.word}" повторяется ${rw.count} раз(а). Используйте синонимы.`,
+      type: 'repeat'
+    }));
+    // 综合评分
+    const score = calculateScore(typos.length, allGrammarErrors.length + repeatIssues.length, vocabulary.richnessLevel);
+    const grade = scoreToGrade(score);
+    const commentZh = generateCommentZh(score, grade, typos.length, allGrammarErrors.length, vocabulary.richnessLevel);
+    const commentRu = generateCommentRu(score, grade, typos.length, allGrammarErrors.length, vocabulary.richnessLevel);
+    // 生成优化文本
+    const optimizedText = generateOptimizedText(trimmed, typos, allGrammarErrors);
+    return {
+      originalText: trimmed, typos,
+      grammarErrors: [...allGrammarErrors, ...repeatIssues].sort((a, b) => a.position - b.position),
+      vocabulary, score, grade, commentZh, commentRu, optimizedText,
+      timestamp: Date.now(),
+      images: uploadedImages.slice() // 保存当前上传图片的快照
+    };
+  }
+
+  function generateOptimizedText(text, typos, grammarErrors) {
+    const edits = [];
+    for (const t of typos) {
+      if (t.correct && t.wrong) {
+        edits.push({ position:t.position, length:t.wrong.length, replacement:t.correct });
+      }
+    }
+    for (const g of grammarErrors) {
+      if (g.correct && g.wrong && g.position !== undefined) {
+        edits.push({ position:g.position, length:g.wrong.length, replacement:g.correct });
+      }
+    }
+    const uniqueEdits = [];
+    const seen = new Set();
+    for (const e of edits) {
+      const key = `${e.position}-${e.length}`;
+      if (!seen.has(key)) { seen.add(key); uniqueEdits.push(e); }
+    }
+    uniqueEdits.sort((a, b) => b.position - a.position);
+    let result = text;
+    for (const edit of uniqueEdits) {
+      result = result.substring(0, edit.position) + edit.replacement + result.substring(edit.position + edit.length);
+    }
+    return result;
+  }
+
+  // ==================== UI：Toast ====================
+  function showAGToast(message, type) {
+    showToast(message, type || 'info');
+  }
+
+  // ==================== UI：字数统计 ====================
+  function updateCharCount() {
+    const input = document.getElementById('agTextInput');
+    const display = document.getElementById('agCharCount');
+    if (!input || !display) return;
+    const text = input.value;
+    const chineseChars = text.replace(/[\s\d\w，,。！!？?；;、：:""''（）()【】\[\]\n\r\t]/g, '');
+    display.textContent = `${t('agCharCount')}: ${chineseChars.length}`;
+  }
+
+  // ==================== UI：图片上传 ====================
+  const AG_IMAGE_TYPES = /^image\/(jpeg|png|gif|webp)$/;
+
+  function normalizePastedImageFile(file, index) {
+    if (file.name && !/^image\d*\.(png|jpe?g|gif|webp)$/i.test(file.name)) return file;
+    const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return new File([file], `paste-${Date.now()}-${index}.${ext}`, { type: file.type });
+  }
+
+  function collectImagesFromClipboard(clipboardData) {
+    const imageFiles = [];
+    if (!clipboardData) return imageFiles;
+    if (clipboardData.items) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(normalizePastedImageFile(file, imageFiles.length));
+        }
+      }
+    }
+    if (imageFiles.length === 0 && clipboardData.files?.length) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const file = clipboardData.files[i];
+        if (file.type.startsWith('image/')) imageFiles.push(normalizePastedImageFile(file, imageFiles.length));
+      }
+    }
+    return imageFiles;
+  }
+
+  function handleTextInputPaste(e) {
+    const clipboardData = e.clipboardData;
+    const imageFiles = collectImagesFromClipboard(clipboardData);
+    if (imageFiles.length === 0) return;
+
+    const plainText = clipboardData.getData('text/plain') || '';
+    e.preventDefault();
+
+    const ta = e.target;
+    if (plainText) {
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.substring(0, start) + plainText + ta.value.substring(end);
+      const pos = start + plainText.length;
+      ta.selectionStart = ta.selectionEnd = pos;
+      updateCharCount();
+    }
+
+    const queued = handleImageFiles(imageFiles);
+    if (queued > 0) {
+      showAGToast(t('agToastImagePasted').replace('{n}', String(queued)), 'success');
+      const previews = document.getElementById('agImgPreviews');
+      if (previews) previews.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function handleTextInputDragOver(e) {
+    if (e.dataTransfer?.types?.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.currentTarget.classList.add('ag-dragover');
+    }
+  }
+
+  function handleTextInputDragLeave(e) {
+    e.currentTarget.classList.remove('ag-dragover');
+  }
+
+  function handleTextInputDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('ag-dragover');
+    const files = e.dataTransfer?.files;
+    if (!files?.length) return;
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    const queued = handleImageFiles(imageFiles);
+    if (queued > 0) {
+      showAGToast(t('agToastImagePasted').replace('{n}', String(queued)), 'success');
+      document.getElementById('agImgPreviews')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function handleImageFiles(files) {
+    if (!files || files.length === 0) return 0;
+    const remaining = MAX_IMAGES - uploadedImages.length;
+    if (remaining <= 0) {
+      showAGToast('最多上传 ' + MAX_IMAGES + ' 张图片', 'error');
+      return 0;
+    }
+    const filesToProcess = Array.from(files).slice(0, remaining);
+    let processed = 0;
+    let queued = 0;
+    for (const file of filesToProcess) {
+      if (!AG_IMAGE_TYPES.test(file.type)) continue;
+      if (file.size > MAX_IMAGE_SIZE) {
+        showAGToast('图片 "' + (file.name || '粘贴的图片') + '" 超过 2MB 限制，已跳过', 'error');
+        continue;
+      }
+      queued++;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        uploadedImages.push({ base64: ev.target.result, name: file.name || 'pasted-image', size: file.size });
+        renderImagePreviews();
+        processed++;
+        if (processed === queued && uploadedImages.length > 0) {
+          document.getElementById('agOcrHint').style.display = 'flex';
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    return queued;
+  }
+
+  function removeImage(index) {
+    uploadedImages.splice(index, 1);
+    renderImagePreviews();
+    if (uploadedImages.length === 0) {
+      document.getElementById('agOcrHint').style.display = 'none';
+    }
+  }
+
+  function renderImagePreviews() {
+    const container = document.getElementById('agImgPreviews');
+    if (!container) return;
+    if (uploadedImages.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = uploadedImages.map((img, i) =>
+      `<div class="ag-img-preview-item">
+        <img src="${img.base64}" alt="${escapeHTML(img.name)}" title="${escapeHTML(img.name)}">
+        <button class="ag-img-preview-remove" onclick="AutoGrader.removeImage(${i})" title="${t('agImgRemoveTitle')}">✕</button>
+      </div>`
+    ).join('');
+  }
+
+  // ==================== OCR 配置 ====================
+  const QWEN_API_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+  const QWEN_MODEL = 'qwen-vl-max';
+  const OCR_API_KEY_STORAGE = 'hsk_qwen_api_key';
+
+  function getApiKey() {
+    return localStorage.getItem(OCR_API_KEY_STORAGE) || '';
+  }
+
+  function setApiKey(key) {
+    localStorage.setItem(OCR_API_KEY_STORAGE, key.trim());
+  }
+
+  function showApiKeyModal() {
+    const key = getApiKey();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:480px;width:90%">
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+        <h3>🔑 ${t('agApiKeyTitle') || 'API Key 设置'}</h3>
+        <p style="font-size:13px;color:var(--text-mid);margin:8px 0 16px">${t('agApiKeyHint') || '输入阿里百炼 API Key 以使用千问视觉模型识别图片文字'}</p>
+        <input type="password" id="apiKeyInput" value="${escapeHTML(key)}" placeholder="sk-xxxxxxxxxxxxxxxx"
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--text-light);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          ${key ? '<button class="btn btn-danger btn-sm" id="btnRemoveApiKey">' + (t('agApiKeyRemove') || '移除 Key') + '</button>' : ''}
+          <button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove()">${t('clear') || '取消'}</button>
+          <button class="btn btn-primary btn-sm" id="btnSaveApiKey">${t('startAnalysis') || '保存'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#btnSaveApiKey').addEventListener('click', function() {
+      const val = document.getElementById('apiKeyInput').value.trim();
+      if (val) { setApiKey(val); showAGToast(t('agApiKeySaved') || 'API Key 已保存！', 'success'); }
+      overlay.remove();
+    });
+    const btnRemove = overlay.querySelector('#btnRemoveApiKey');
+    if (btnRemove) {
+      btnRemove.addEventListener('click', function() {
+        localStorage.removeItem(OCR_API_KEY_STORAGE);
+        document.getElementById('apiKeyInput').value = '';
+        showAGToast(t('agApiKeyRemoved') || 'API Key 已移除', 'info');
+        overlay.remove();
+      });
+    }
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  }
+
+  /**
+   * OCR 识别 — 使用阿里百炼千问视觉大模型识别图片文字
+   * @param {string} imageBase64 - 图片的 base64 编码（含 data:image/xxx;base64, 前缀）
+   * @returns {Promise<string>} 识别出的文字
+   */
+  async function runOCR(imageBase64) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      showApiKeyModal();
+      throw new Error('API Key 未配置');
+    }
+    const resp = await fetch(QWEN_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: QWEN_MODEL,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: imageBase64 } },
+            { type: 'text', text: '请识别这张图片中的所有汉字和标点，只返回识别出的文字内容，不要添加任何解释、说明或问候语。' }
+          ]
+        }]
+      })
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      if (resp.status === 401) throw new Error('API Key 无效或已过期');
+      throw new Error('API 请求失败 (' + resp.status + '): ' + errText.slice(0, 200));
+    }
+    const data = await resp.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    return text.replace(/^\s+|\s+$/g, '');
+  }
+
+  /**
+   * 批量 OCR：对已上传的所有图片依次识别，合并结果填入输入框
+   */
+  async function runOCRAll() {
+    if (uploadedImages.length === 0) {
+      showAGToast('请先上传图片', 'error');
+      return;
+    }
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      showApiKeyModal();
+      return;
+    }
+    const btn = document.getElementById('agBtnOCR');
+    if (btn) { btn.disabled = true; btn.textContent = 'AI 识别中...'; }
+    const input = document.getElementById('agTextInput');
+    let allText = '';
+    let successCount = 0;
+    for (let i = 0; i < uploadedImages.length; i++) {
+      try {
+        const text = await runOCR(uploadedImages[i].base64);
+        if (text.trim()) {
+          allText += (allText ? '\n' : '') + text.trim();
+          successCount++;
+        }
+      } catch (err) {
+        console.error('[Qwen OCR] 第' + (i + 1) + '张图片识别失败:', err.message);
+        showAGToast('第' + (i + 1) + '张识别失败: ' + err.message, 'error');
+      }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 识别图片文字'; }
+    if (allText) {
+      const before = input.value.trim();
+      input.value = before ? before + '\n' + allText : allText;
+      updateCharCount();
+      const recognizedChars = allText.replace(/\s/g, '').length;
+      showAGToast('AI 识别完成！成功 ' + successCount + '/' + uploadedImages.length + ' 张，共 ' + recognizedChars + ' 个字符', 'success');
+    } else {
+      showAGToast('未能识别出文字，请检查图片质量或手动输入', 'error');
+    }
+  }
+
+  // ==================== UI：主流程 ====================
+  function doGrading() {
+    const input = document.getElementById('agTextInput');
+    const text = input ? input.value.trim() : '';
+    if (!text) { showAGToast(t('agToastEmpty'), 'error'); return; }
+    // 模拟加载
+    showLoading('批改中...');
+    setTimeout(() => {
+      try {
+        const result = analyzeText(text);
+        currentResult = result;
+        renderResults(result);
+        saveHistory(result);
+        renderHistory();
+        showAGToast('批改完成！', 'success');
+        document.getElementById('agResultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        console.error('[AutoGrader]', err);
+        showAGToast('批改出错，请打开浏览器控制台查看详情', 'error');
+      } finally {
+        hideLoading();
+      }
+    }, 400);
+  }
+
+  function loadDemo() {
+    const input = document.getElementById('agTextInput');
+    if (input) { input.value = DEMO_TEXT; updateCharCount(); }
+  }
+
+  function clearInput() {
+    const input = document.getElementById('agTextInput');
+    if (input) { input.value = ''; updateCharCount(); }
+    const resultsCard = document.getElementById('agResultsCard');
+    if (resultsCard) resultsCard.style.display = 'none';
+    currentResult = null;
+    // 不清除图片
+  }
+
+  // ==================== UI：渲染结果 ====================
+  function renderResults(result) {
+    const card = document.getElementById('agResultsCard');
+    if (card) card.style.display = 'block';
+    renderOverviewTab(result);
+    renderDetailsTab(result);
+    renderOptimizedTab(result);
+    switchTab('overview');
+  }
+
+  function renderOverviewTab(result) {
+    const panel = document.getElementById('agPanelOverview');
+    if (!panel) return;
+    const v = result.vocabulary;
+    panel.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px">
+        <div class="score-circle ${getScoreBgColor(result.score)}">
+          <span class="score-num">${result.score}</span>
+          <span class="score-total">/ 100</span>
+        </div>
+        <span class="grade-badge grade-${result.grade.toLowerCase()}">${result.grade} · ${t('agGrade'+result.grade)}</span>
+      </div>
+      <div class="result-block" style="border-left:4px solid var(--primary)">
+        <h4 style="margin-bottom:4px">💬 ${t('agOverviewComment')}</h4>
+        <p style="font-size:14px;color:var(--text-mid);margin:0">${currentLang === 'ru' ? result.commentRu : result.commentZh}</p>
+      </div>
+      <h4 style="font-size:14px;font-weight:600;color:var(--text-dark);margin:16px 0 10px">📈 ${t('agOverviewStats')}</h4>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px">
+        <div class="ag-stat-mini"><span class="ag-stat-val">${v.totalChars}</span><span class="ag-stat-lbl">${t('agOverviewTotalChars')}</span></div>
+        <div class="ag-stat-mini"><span class="ag-stat-val">${v.uniqueChars}</span><span class="ag-stat-lbl">${t('agOverviewUniqueChars')}</span></div>
+        <div class="ag-stat-mini"><span class="ag-stat-val" style="color:#dc2626">${result.typos.length}</span><span class="ag-stat-lbl">${t('agOverviewTypoCount')}</span></div>
+        <div class="ag-stat-mini"><span class="ag-stat-val" style="color:#d97706">${result.grammarErrors.length}</span><span class="ag-stat-lbl">${t('agOverviewGrammarCount')}</span></div>
+        <div class="ag-stat-mini"><span class="ag-stat-val" style="color:${v.richnessLevel==='high'?'#16a34a':(v.richnessLevel==='medium'?'#ca8a04':'#dc2626')}">${t('agRichness'+v.richnessLevel.charAt(0).toUpperCase()+v.richnessLevel.slice(1))}</span><span class="ag-stat-lbl">${t('agOverviewRichness')}</span></div>
+        <div class="ag-stat-mini"><span class="ag-stat-val" style="color:#7c3aed">${v.repeatedWords.length}</span><span class="ag-stat-lbl">${t('agOverviewRepeatCount')}</span></div>
+      </div>`;
+  }
+
+  function renderDetailsTab(result) {
+    const panel = document.getElementById('agPanelDetails');
+    if (!panel) return;
+    const lang = currentLang === 'ru' ? 'ru' : 'zh';
+    let html = '';
+    // 错别字
+    html += `<h4 class="ag-detail-title">🔍 ${t('agDetailsTypoSection')}</h4>`;
+    if (result.typos.length === 0) {
+      html += `<p style="font-size:13px;color:#16a34a;background:#f0fdf4;padding:10px;border-radius:8px;margin-bottom:12px">✅ ${t('agDetailsNoTypo')}</p>`;
+    } else {
+      for (const typo of result.typos) {
+        html += `<div class="ag-error-card ag-typo">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span class="ag-error-badge ag-error-typo-badge">${t('agErrorTypo')}</span>
+            <div style="flex:1">
+              <p style="font-size:13px;margin:0"><span style="color:#dc2626;text-decoration:line-through;font-weight:500">${escapeHTML(typo.wrong)}</span> <span style="color:var(--text-light);margin:0 4px">→</span> <span style="color:#16a34a;font-weight:500">${escapeHTML(typo.correct)}</span> <span style="font-size:11px;color:var(--text-light);margin-left:8px">${t('agDetailsPosition')} ${typo.position+1}</span></p>
+              <p style="font-size:12px;color:var(--text-mid);margin:4px 0 0">${lang === 'ru' ? typo.descriptionRu : typo.descriptionZh}</p>
+            </div>
+          </div>
+        </div>`;
+      }
+    }
+    // 语法错误
+    html += `<h4 class="ag-detail-title">📐 ${t('agDetailsGrammarSection')}</h4>`;
+    const grammarOnly = result.grammarErrors.filter(e => e.type !== 'repeat');
+    if (grammarOnly.length === 0) {
+      html += `<p style="font-size:13px;color:#16a34a;background:#f0fdf4;padding:10px;border-radius:8px;margin-bottom:12px">✅ ${t('agDetailsNoGrammar')}</p>`;
+    } else {
+      for (const g of grammarOnly) {
+        const typeKey = 'agError' + (g.type ? g.type.charAt(0).toUpperCase() + g.type.slice(1) : 'Grammar');
+        const typeLabel = t(typeKey) || g.type || '';
+        html += `<div class="ag-error-card ag-grammar">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span class="ag-error-badge ag-error-grammar-badge">${typeLabel}</span>
+            <div style="flex:1">
+              <p style="font-size:13px;margin:0"><span style="font-size:11px;color:var(--text-light)">${t('agDetailsContext')}:</span> <span style="background:#fffbeb;padding:1px 4px;border-radius:2px;font-weight:500">${escapeHTML(g.context || '')}</span> <span style="font-size:11px;color:var(--text-light);margin-left:8px">${t('agDetailsPosition')} ${g.position+1}</span></p>
+              <p style="font-size:12px;color:var(--text-mid);margin:4px 0 0">${lang === 'ru' ? g.descriptionRu : g.descriptionZh}</p>
+              ${g.suggestion ? `<p style="font-size:12px;color:var(--primary);margin:2px 0 0">💡 ${escapeHTML(g.suggestion)}</p>` : ''}
+            </div>
+          </div>
+        </div>`;
+      }
+    }
+    // 重复词汇
+    const repeatErrors = result.grammarErrors.filter(e => e.type === 'repeat');
+    if (repeatErrors.length > 0) {
+      html += `<h4 class="ag-detail-title">🔄 ${t('agDetailsVocabSection')}</h4>`;
+      for (const r of repeatErrors) {
+        html += `<div class="ag-error-card ag-repeat">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span class="ag-error-badge ag-error-repeat-badge">${t('agErrorRepeat')}</span>
+            <div style="flex:1">
+              <p style="font-size:13px;margin:0"><span style="font-weight:500">"${escapeHTML(r.context)}"</span> <span style="font-size:11px;color:var(--text-light);margin-left:8px">${t('agDetailsCount')}: ${r.count}</span></p>
+              <p style="font-size:12px;color:var(--text-mid);margin:4px 0 0">${lang === 'ru' ? r.descriptionRu : r.descriptionZh}</p>
+            </div>
+          </div>
+        </div>`;
+      }
+    }
+    panel.innerHTML = html;
+  }
+
+  function renderOptimizedTab(result) {
+    const panel = document.getElementById('agPanelOptimized');
+    if (!panel) return;
+    const hasChanges = result.optimizedText !== result.originalText;
+    panel.innerHTML = `
+      <p style="font-size:13px;color:var(--text-mid);margin-bottom:12px">💡 ${t('agOptimizedHint')}</p>
+      ${hasChanges ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <h5 style="font-size:11px;font-weight:600;color:var(--text-mid);margin-bottom:6px;text-transform:uppercase">📄 ${t('agDetailsOriginal')}</h5>
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap">${highlightErrors(result.originalText, result)}</div>
+          </div>
+          <div>
+            <h5 style="font-size:11px;font-weight:600;color:var(--text-mid);margin-bottom:6px;text-transform:uppercase">✨ ${t('agOptimizedTitle')}</h5>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap">${escapeHTML(result.optimizedText)}</div>
+          </div>
+        </div>
+      ` : `
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;text-align:center">
+          <p style="color:#16a34a;font-weight:500;margin:0">✅ ${t('agOptimizedNoChanges')}</p>
+        </div>
+      `}`;
+  }
+
+  function highlightErrors(text, result) {
+    const marks = [];
+    for (const t of result.typos) { marks.push({ start:t.position, end:t.position+t.length, cssClass:'highlight-typo' }); }
+    for (const g of result.grammarErrors) {
+      if (g.position !== undefined && g.length !== undefined) { marks.push({ start:g.position, end:g.position+g.length, cssClass:'highlight-grammar' }); }
+    }
+    marks.sort((a, b) => a.start - b.start);
+    let out = '';
+    let cursor = 0;
+    for (const m of marks) {
+      if (m.start < cursor) continue;
+      out += escapeHTML(text.slice(cursor, m.start));
+      out += `<mark class="${m.cssClass}">${escapeHTML(text.slice(m.start, m.end))}</mark>`;
+      cursor = m.end;
+    }
+    out += escapeHTML(text.slice(cursor));
+    return out;
+  }
+
+  function switchTab(tabName) {
+    document.querySelectorAll('.ag-tab').forEach(t => t.classList.remove('active'));
+    const tabBtn = document.querySelector(`[data-ag-tab="${tabName}"]`);
+    if (tabBtn) tabBtn.classList.add('active');
+    document.getElementById('agPanelOverview').classList.toggle('hidden', tabName !== 'overview');
+    document.getElementById('agPanelDetails').classList.toggle('hidden', tabName !== 'details');
+    document.getElementById('agPanelOptimized').classList.toggle('hidden', tabName !== 'optimized');
+  }
+
+  function copyResults() {
+    if (!currentResult) { showAGToast(t('agToastEmpty'), 'error'); return; }
+    const r = currentResult;
+    const lang = currentLang === 'ru' ? 'ru' : 'zh';
+    const text = [
+      `=== ${t('agResultsTitle')} ===`,
+      `${t('agOverviewScore')}: ${r.score}/100 (${r.grade})`,
+      `${t('agOverviewComment')}: ${lang === 'ru' ? r.commentRu : r.commentZh}`,
+      `${t('agOverviewTypoCount')}: ${r.typos.length}`,
+      `${t('agOverviewGrammarCount')}: ${r.grammarErrors.length}`,
+      '',
+      `=== ${t('agOptimizedTitle')} ===`,
+      r.optimizedText,
+    ].join('\n');
+    navigator.clipboard.writeText(text).then(() => showAGToast(t('agToastCopied'), 'success')).catch(() => {});
+  }
+
+  // ==================== 历史记录管理 ====================
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function saveHistory(result) {
+    const history = getHistory();
+    history.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      originalText: result.originalText,
+      preview: result.originalText.length > 80 ? result.originalText.slice(0, 80) + '…' : result.originalText,
+      score: result.score, grade: result.grade,
+      commentZh: result.commentZh, commentRu: result.commentRu,
+      typosCount: result.typos.length, grammarCount: result.grammarErrors.length,
+      timestamp: result.timestamp,
+      images: result.images || [],
+      fullResult: result
+    });
+    if (history.length > MAX_HISTORY) history.splice(MAX_HISTORY);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+    catch(e) {
+      history.splice(-10);
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(e2) {}
+    }
+  }
+
+  function deleteHistory(id) {
+    let history = getHistory();
+    history = history.filter(h => h.id !== id);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderHistory();
+    showAGToast(t('agToastHistoryDeleted'), 'success');
+  }
+
+  function clearAllHistory() {
+    if (confirm(t('agHistoryClearConfirm'))) {
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+      showAGToast(t('agToastHistoryCleared'), 'success');
+    }
+  }
+
+  function renderHistory() {
+    const history = getHistory();
+    const listEl = document.getElementById('agHistoryList');
+    const emptyEl = document.getElementById('agHistoryEmpty');
+    const countEl = document.getElementById('agHistoryCount');
+    const actionsEl = document.getElementById('agHistoryActions');
+    if (!listEl) return;
+    if (countEl) countEl.textContent = history.length > 0 ? `${history.length} ${t('agHistoryCount')}` : '';
+    if (emptyEl) emptyEl.style.display = history.length === 0 ? 'block' : 'none';
+    if (actionsEl) actionsEl.hidden = history.length === 0;
+    listEl.innerHTML = '';
+    if (history.length === 0) return;
+    for (const item of history) {
+      const card = document.createElement('div');
+      card.className = 'history-item';
+      card.style.cssText = 'flex-wrap:wrap;gap:8px;';
+      const gradeColors = { A:'#22c55e', B:'#3b82f6', C:'#eab308', D:'#f97316', F:'#ef4444' };
+      card.innerHTML = `
+        <div class="history-info" style="min-width:200px">
+          <div class="history-title">
+            <span style="color:${gradeColors[item.grade]||'#888'};font-weight:700;margin-right:6px">${item.score}分</span>
+            <span style="font-size:12px;color:var(--text-mid)">${new Date(item.timestamp).toLocaleString()}</span>
+          </div>
+          <div class="history-time" style="margin-top:2px">${escapeHTML(item.preview)}</div>
+          <div style="font-size:11px;color:var(--text-light);margin-top:2px">
+            ${t('agOverviewTypoCount')}: ${item.typosCount} · ${t('agOverviewGrammarCount')}: ${item.grammarCount}
+            ${item.images && item.images.length > 0 ? ' · 🖼 ' + item.images.length : ''}
+          </div>
+        </div>
+        <div class="history-actions" style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-outline btn-sm ag-history-view" data-id="${item.id}">${t('agHistoryViewDetail')}</button>
+          <button class="btn btn-outline btn-sm ag-history-restore" data-id="${item.id}">${t('agHistoryRestore')}</button>
+          <button class="btn btn-ghost btn-sm ag-history-delete" data-id="${item.id}">${t('agHistoryDelete')}</button>
+        </div>`;
+      listEl.appendChild(card);
+    }
+  }
+
+  function restoreFromHistory(id) {
+    const history = getHistory();
+    const item = history.find(h => h.id === id);
+    if (!item || !item.fullResult) return;
+    currentResult = item.fullResult;
+    const input = document.getElementById('agTextInput');
+    if (input) { input.value = item.originalText; updateCharCount(); }
+    // 恢复图片
+    if (item.fullResult.images) {
+      uploadedImages = item.fullResult.images.slice();
+      renderImagePreviews();
+      if (uploadedImages.length > 0) document.getElementById('agOcrHint').style.display = 'flex';
+    }
+    renderResults(item.fullResult);
+    document.getElementById('agResultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function viewHistoryDetail(id) {
+    const history = getHistory();
+    const item = history.find(h => h.id === id);
+    if (!item || !item.fullResult) return;
+    currentResult = item.fullResult;
+    renderResults(item.fullResult);
+    document.getElementById('agResultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ==================== 事件绑定 ====================
+  function bindEvents() {
+    const textInput = document.getElementById('agTextInput');
+    const btnSubmit = document.getElementById('agBtnSubmit');
+    const btnClear = document.getElementById('agBtnClear');
+    const btnDemo = document.getElementById('agBtnDemo');
+    const btnClearHistory = document.getElementById('agBtnClearHistory');
+    const dropzone = document.getElementById('agImgDropzone');
+    const imgInput = document.getElementById('agImgInput');
+    const historyList = document.getElementById('agHistoryList');
+
+    if (textInput) {
+      textInput.addEventListener('input', updateCharCount);
+      textInput.addEventListener('paste', handleTextInputPaste);
+      textInput.addEventListener('dragover', handleTextInputDragOver);
+      textInput.addEventListener('dragleave', handleTextInputDragLeave);
+      textInput.addEventListener('drop', handleTextInputDrop);
+    }
+    if (btnSubmit) btnSubmit.addEventListener('click', doGrading);
+    if (btnClear) btnClear.addEventListener('click', clearInput);
+    if (btnDemo) btnDemo.addEventListener('click', loadDemo);
+    if (btnClearHistory) btnClearHistory.addEventListener('click', clearAllHistory);
+
+    // 标签页切换
+    document.querySelectorAll('.ag-tab').forEach(tab => {
+      tab.addEventListener('click', function() { switchTab(this.getAttribute('data-ag-tab')); });
+    });
+
+    // 图片上传 — 点击
+    if (dropzone && imgInput) {
+      dropzone.addEventListener('click', function(e) {
+        if (e.target.closest('.ag-img-preview-remove')) return;
+        imgInput.click();
+      });
+      imgInput.addEventListener('change', function() { handleImageFiles(this.files); });
+    }
+
+    // OCR 识别按钮
+    const btnOCR = document.getElementById('agBtnOCR');
+    if (btnOCR) btnOCR.addEventListener('click', runOCRAll);
+
+    // 图片上传 — 拖拽
+    if (dropzone) {
+      dropzone.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
+      dropzone.addEventListener('dragleave', function() { this.classList.remove('dragover'); });
+      dropzone.addEventListener('drop', function(e) {
+        e.preventDefault(); this.classList.remove('dragover');
+        handleImageFiles(e.dataTransfer.files);
+      });
+    }
+
+    // 历史记录事件委托
+    if (historyList) {
+      historyList.addEventListener('click', function(e) {
+        const viewBtn = e.target.closest('.ag-history-view');
+        const restoreBtn = e.target.closest('.ag-history-restore');
+        const deleteBtn = e.target.closest('.ag-history-delete');
+        if (viewBtn) viewHistoryDetail(viewBtn.dataset.id);
+        else if (restoreBtn) restoreFromHistory(restoreBtn.dataset.id);
+        else if (deleteBtn) { deleteHistory(deleteBtn.dataset.id); }
+      });
+    }
+
+    // 键盘快捷键（全局已在 init 中处理）
+  }
+
+  // ==================== 初始化 ====================
+  function init() {
+    bindEvents();
+    updateCharCount();
+    renderHistory();
+    console.log('✅ AutoGrader 作业批改模块已就绪');
+    console.log('   — 错别字规则:', TYPO_RULES.length, '条');
+    console.log('   — 语法检测规则:', GRAMMAR_RULES.length, '组');
+    console.log('   — 常用词库:', COMMON_WORDS.size, '个');
+    console.log('   — 历史记录:', getHistory().length, '条');
+    console.log('   — 图片上传: 支持拖拽/点击，最多', MAX_IMAGES, '张，单张 ≤ 2MB');
+    console.log('   — OCR 识别: 使用 Tesseract.js 离线识别中文，支持 ' + MAX_IMAGES + ' 张图片');
+    console.log('   💡 提示：Ctrl+Enter 可快速批改');
+  }
+
+  // ==================== 公开 API ====================
+  return {
+    init, doGrading, updateCharCount, loadDemo, clearInput,
+    removeImage, renderImagePreviews, runOCR, runOCRAll,
+    getHistory, renderHistory, deleteHistory, clearAllHistory,
+    restoreFromHistory, viewHistoryDetail, copyResults, switchTab,
+    get currentResult() { return currentResult; },
+    rerenderResults: function() { if (currentResult) renderResults(currentResult); }
+  };
+})();
+
+function init() {
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') {
+      const activePanel = document.querySelector('.panel.active');
+      if (activePanel.id === 'speaking-panel') analyzeSpeaking();
+      else if (activePanel.id === 'essay-panel') analyzeEssay();
+      else if (activePanel.id === 'auto-grading-panel') AutoGrader.doGrading();
+    }
+  });
+  const savedLang = localStorage.getItem('hsk_ui_lang');
+  if (savedLang && i18n[savedLang]) {
+    document.getElementById('langSelect').value = savedLang;
+    switchLanguage(savedLang);
+  } else {
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const key = el.getAttribute('data-i18n-placeholder');
+      if (key) el.placeholder = t(key);
+    });
+  }
+  renderTips('hsk-listening');
+  AutoGrader.init();
+  console.log('HSK Exam Analysis Expert Platform Ready');
+  console.log('HSK考试成绩分析专家平台已就绪 | HSK Платформа анализа экзаменов готова');
+}
+
+init();
+</script>
+
+</body>
+</html>
